@@ -7,5 +7,6 @@ import { NatsModule } from '../nats/nats.module';
   imports: [NatsModule],
   controllers: [InboundController],
   providers: [InboundService],
+  exports: [InboundService],
 })
 export class InboundModule {}

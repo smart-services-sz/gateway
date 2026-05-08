@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { NatsModule } from './nats/nats.module';
 import { InboundModule } from './inbound/inbound.module';
 import { RedisModule } from './redis/redis.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     NatsModule,
     InboundModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
