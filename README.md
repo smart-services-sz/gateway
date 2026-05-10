@@ -1,29 +1,100 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+## Gateway - SmartService
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API Gateway que orquesta la comunicación entre webhooks de Meta WhatsApp, microservicios internos (ms-ai, ms-geo, ms-reclamos) y sistema de respuesta por WhatsApp.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Arquitectura
 
-## Description
+```
+Meta WhatsApp Webhook
+      ↓
+[GET/POST] /api/webhooks/meta/whatsapp
+      ↓
+WebhooksService (Validación y firma X-Hub-Signature-256)
+      ↓
+InboundService (Debounce, deduplicación, buffering en Redis)
+      ↓
+NATS → ms-ai (Procesamiento con OpenAI)
+      ↓
+WhatsappService (Respuesta vía Meta WhatsApp API)
+      ↓
+Meta WhatsApp API → Usuario
+```
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Configuración Requerida
+
+### Variables de Entorno (.env)
+
+```bash
+# Meta WhatsApp Webhook
+META_WHATSAPP_WEBHOOK_VERIFY_TOKEN=tu_token_verificacion
+META_WHATSAPP_APP_SECRET=tu_app_secret
+META_WHATSAPP_ACCESS_TOKEN=tu_access_token_de_meta
+META_BUSINESS_ACCOUNT_ID=tu_business_account_id
+META_API_VERSION=v25.0
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# NATS (Microservicios)
+NATS_SERVERS=nats://localhost:4222
+
+# Inbound Processing
+INBOUND_IDEMPOTENCY_TTL_SECONDS=86400
+INBOUND_CONTEXT_TTL_SECONDS=86400
+INBOUND_MESSAGE_HISTORY_LIMIT=20
+INBOUND_MIN_DEBOUNCE_MS=800
+INBOUND_MIN_DEBOUNCE_WHATSAPP_MS=2000
+
+# WhatsApp Response Timing
+META_WHATSAPP_RESPONSE_DEBOUNCE_MS=2500
+META_WHATSAPP_RESPONSE_DELAY_MS=300
+META_WHATSAPP_RESPONSE_MAX_ACCUMULATION_MS=8000
+```
+
+## Flujo de Mensajes
+
+### Entrada (Inbound)
+
+1. Meta envía webhook a `POST /api/webhooks/meta/whatsapp`
+2. Se valida firma `X-Hub-Signature-256`
+3. Se extrae el mensaje de texto del payload de Meta
+4. Se bufferiza en Redis con debounce (2.5s por defecto)
+5. Al vencer el debounce, se envía a ms-ai como payload consolidado
+
+### Salida (Outbound)
+
+1. ms-ai responde con `assistantMessage` vía NATS
+2. Gateway invoca `WhatsappService.sendTextMessage()`
+3. Se envía a Meta WhatsApp API
+4. Meta entrega al usuario por WhatsApp
+
+## Endpoints
+
+### Webhook Verification (GET)
+```
+GET /api/webhooks/meta/whatsapp
+Query Params:
+  - hub.mode: "subscribe"
+  - hub.verify_token: Tu token de verificación
+  - hub.challenge: Challenge de Meta
+```
+
+### Webhook Reception (POST)
+```
+POST /api/webhooks/meta/whatsapp
+Headers:
+  - X-Hub-Signature-256: sha256=...
+Body: Payload de Meta WhatsApp (JSON)
+```
+
+### Context Query (Diagnóstico)
+```
+GET /api/inbound/messages/context?contactKey=whatsapp:phone:5491166660000
+```
+
+Retorna contexto completo: mensajes bufferizados, estado de conversación, último resultado de dispatch.
 
 ## Project setup
 
@@ -56,28 +127,6 @@ $ npm run test:e2e
 # test coverage
 $ npm run test:cov
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
 - Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
 - Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
 - To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).

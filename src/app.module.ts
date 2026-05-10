@@ -6,6 +6,7 @@ import { NatsModule } from './nats/nats.module';
 import { InboundModule } from './inbound/inbound.module';
 import { RedisModule } from './redis/redis.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     NatsModule,
     InboundModule,
     WebhooksModule,
+    WhatsappModule,
   ],
   controllers: [AppController],
   providers: [AppService],

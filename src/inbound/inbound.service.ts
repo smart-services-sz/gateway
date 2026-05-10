@@ -8,6 +8,7 @@ import {
   CreateInboundMessageDto,
 } from './dto/create-inbound-message.dto';
 import { RedisService } from '../redis/redis.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 // Mensaje ya validado y normalizado, listo para ser procesado internamente.
 type SanitizedInboundMessage = {
@@ -97,6 +98,7 @@ export class InboundService implements OnModuleDestroy {
   constructor(
     private readonly redisService: RedisService,
     private readonly configService: ConfigService,
+    private readonly whatsappService: WhatsappService,
     @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
   ) {
     this.idempotencyTtlSeconds = this.intFromConfig(
@@ -574,8 +576,8 @@ export class InboundService implements OnModuleDestroy {
   }
 
   // Procesa la respuesta de ms-ai y la "emite" al canal de origen del ciudadano.
-  // Por ahora loguea la respuesta (stub); en producción se integra con el proveedor
-  // del canal (WhatsApp Business API, socket web, etc.).
+  // Para WhatsApp: envía vía API de Meta WhatsApp Business.
+  // Persiste en Redis para trazabilidad y diagnóstico.
   private async emitChannelResponse(
     payload: AiInboundPayload,
     response: unknown,
@@ -608,10 +610,66 @@ export class InboundService implements OnModuleDestroy {
         { EX: this.contextTtlSeconds },
       );
 
-    // TODO: Reemplazar por integración real con proveedor del canal (WhatsApp Business API, socket web, etc.).
-    this.logger.log(
-      `[CHANNEL-OUT][${payload.channel}] to=${payload.contactKey} status=${status || 'n/a'} message="${assistantMessage}"`,
-    );
+    // Envía el mensaje según el canal.
+    if (payload.channel === ChannelType.WHATSAPP) {
+      await this.sendWhatsappMessage(
+        payload.correlationId,
+        payload.contactKey,
+        assistantMessage,
+        payload.metadata,
+      );
+    } else {
+      // Para otros canales, solo loguea.
+      this.logger.log(
+        `[CHANNEL-OUT][${payload.channel}] to=${payload.contactKey} status=${status || 'n/a'} message="${assistantMessage}"`,
+      );
+    }
+  }
+
+  // Envía un mensaje por WhatsApp usando la API de Meta.
+  // Extrae el phone del contactKey y obtiene phoneNumberId del metadata.
+  private async sendWhatsappMessage(
+    correlationId: string,
+    contactKey: string,
+    assistantMessage: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    // Extrae el phone del contactKey (formato: whatsapp:phone:5493413538664)
+    const parts = contactKey.split(':');
+    const recipientPhone = parts[2];
+
+    if (!recipientPhone) {
+      this.logger.error(
+        `[${correlationId}] No se pudo extraer el phone del contactKey=${contactKey}`,
+      );
+      return;
+    }
+
+    // Obtiene phoneNumberId del metadata (viene del webhook de Meta)
+    const phoneNumberId = metadata?.phoneNumberId;
+
+    if (!phoneNumberId || typeof phoneNumberId !== 'string') {
+      this.logger.error(
+        `[${correlationId}] No hay phoneNumberId en metadata para contactKey=${contactKey}`,
+      );
+      return;
+    }
+
+    const messageId = await this.whatsappService.sendTextMessage({
+      phoneNumberId,
+      recipientPhone,
+      message: assistantMessage,
+    });
+
+    if (messageId) {
+      this.logger.log(
+        `[${correlationId}] [CHANNEL-OUT][whatsapp] to=${contactKey} messageId=${messageId} | SUCCESS`,
+      );
+    } else {
+      this.logger.error(
+        `[${correlationId}] [CHANNEL-OUT][whatsapp] to=${contactKey} | FAILED`,
+      );
+    }
   }
 
   private extractAssistantMessage(response: unknown): string | undefined {
