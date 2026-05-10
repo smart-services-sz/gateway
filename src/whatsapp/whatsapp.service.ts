@@ -19,15 +19,13 @@ export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
   private readonly metaApiVersion: string;
   private readonly metaAccessToken: string;
-  private readonly metaBusinessAccountId: string;
 
   constructor(private readonly configService: ConfigService) {
     this.metaApiVersion =
       this.configService.get<string>('META_API_VERSION') || 'v25.0';
-    this.metaAccessToken =
-      this.configService.get<string>('META_WHATSAPP_ACCESS_TOKEN') || '';
-    this.metaBusinessAccountId =
-      this.configService.get<string>('META_BUSINESS_ACCOUNT_ID') || '';
+    this.metaAccessToken = this.normalizeAccessToken(
+      this.configService.get<string>('META_WHATSAPP_ACCESS_TOKEN') || '',
+    );
   }
 
   /**
@@ -54,7 +52,7 @@ export class WhatsappService {
       return null;
     }
 
-    const url = `https://graph.instagram.com/${this.metaApiVersion}/${phoneNumberId}/messages`;
+    const url = `https://graph.facebook.com/${this.metaApiVersion}/${phoneNumberId}/messages`;
 
     const payload_meta = {
       messaging_product: 'whatsapp',
@@ -93,5 +91,10 @@ export class WhatsappService {
 
       return null;
     }
+  }
+
+  private normalizeAccessToken(token: string): string {
+    // Avoid subtle token parse errors caused by accidental wrapping quotes/whitespace.
+    return token.trim().replace(/^['\"]|['\"]$/g, '');
   }
 }
