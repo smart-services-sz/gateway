@@ -18,11 +18,14 @@ import {
 import { Request } from 'express';
 import { WebhooksService } from './webhooks.service';
 
+import { Public } from '../auth/decorators/public.decorator';
+
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
+  @Public()
   @Get('meta/whatsapp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verifica el webhook de Meta WhatsApp' })
@@ -49,6 +52,7 @@ export class WebhooksController {
     );
   }
 
+  @Public()
   @Post('meta/whatsapp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
