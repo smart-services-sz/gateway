@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { RoutingModule } from './routing/routing.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
     WebhooksModule,
     WhatsappModule,
     ReclamosModule,
+    RoutingModule,
     AuthModule,
     PermissionsModule,
     RolesModule,
