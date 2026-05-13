@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { AUTH_COOKIES } from './constants/auth-cookies';
@@ -130,5 +130,15 @@ export class AuthController {
     @RequestContext() context: RequestContextData,
   ) {
     return this.authService.updateUser(id, dto, context);
+  }
+
+  @Roles('ADMIN')
+  @Permissions('DELETE_USER')
+  @Delete('users/:id')
+  async deleteUser(
+    @Param('id') id: string,
+    @RequestContext() context: RequestContextData,
+  ) {
+    return this.authService.deleteUser(id, context);
   }
 }

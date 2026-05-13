@@ -171,4 +171,22 @@ export class AuthService {
         ),
     );
   }
+
+  async deleteUser(
+    id: string,
+    context: RequestContextData,
+  ) {
+    return await firstValueFrom(
+      this.authClient
+        .send('users.delete', {
+          data: { id },
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 }
