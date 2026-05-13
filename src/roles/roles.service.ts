@@ -88,6 +88,26 @@ export class RolesService {
         );
     }
 
+    async deleteRole(
+        id: string,
+        user: JwtUser,
+        context: RequestContextData,
+    ) {
+        return await firstValueFrom(
+            this.natsClient.send('roles.delete', {
+                data: {
+                    id,
+                    user,
+                },
+                context,
+            }).pipe(
+                catchError((error) => {
+                    throw error;
+                }),
+            ),
+        );
+    }
+
     async getUserRoles(
         userId: string,
         context: RequestContextData,
@@ -113,6 +133,31 @@ export class RolesService {
                 context,
             })
             .pipe(timeout(8000)),
+        );
+    }
+
+    async getRolePermissions(
+        roleId: string,
+        context: RequestContextData,
+    ) {
+        return firstValueFrom(
+            this.natsClient.send('role.permissions.get', {
+                data: { roleId },
+                context,
+            }).pipe(timeout(8000)),
+        );
+    }
+
+    async setRolePermissions(
+        dto: { roleId: string; permissionIds: string[] },
+        user: JwtUser,
+        context: RequestContextData,
+    ) {
+        return firstValueFrom(
+            this.natsClient.send('role.permissions.set', {
+                data: { dto, user },
+                context,
+            }).pipe(timeout(8000)),
         );
     }
 }

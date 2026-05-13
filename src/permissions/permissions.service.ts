@@ -88,6 +88,26 @@ export class PermissionsService {
         );
     }
 
+    async deletePermission(
+        id: string,
+        user: JwtUser,
+        context: RequestContextData,
+    ) {
+        return await firstValueFrom(
+            this.natsClient.send('permission.delete', {
+                data: {
+                    id,
+                    user,
+                },
+                context,
+            }).pipe(
+                catchError((error) => {
+                    throw error;
+                }),
+            ),
+        );
+    }
+
     async getUserPermissions(
         userId: string,
         context: RequestContextData,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { RequestContext, type RequestContextData } from '../common/decorators/request-context.decorator';
@@ -53,6 +53,43 @@ export class RolesController {
     @RequestContext() context: RequestContextData,
   ) {
     return this.rolesService.updateRole(id, dto, user, context);
+  }
+
+  @Roles('ADMIN')
+  @Permissions('MANAGE_ROLES')
+  @Delete(':id')
+  async deleteRole(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtUser,
+    @RequestContext() context: RequestContextData,
+  ) {
+    return this.rolesService.deleteRole(id, user, context);
+  }
+
+  @Roles('ADMIN')
+  @Permissions('VIEW_PERMISSIONS')
+  @Get(':id/permissions')
+  getRolePermissions(
+    @Param('id') id: string,
+    @RequestContext() context: RequestContextData,
+  ) {
+    return this.rolesService.getRolePermissions(id, context);
+  }
+
+  @Roles('ADMIN')
+  @Permissions('MANAGE_PERMISSIONS')
+  @Put(':id/permissions')
+  setRolePermissions(
+    @Param('id') id: string,
+    @Body() dto: { permissionIds: string[] },
+    @CurrentUser() user: JwtUser,
+    @RequestContext() context: RequestContextData,
+  ) {
+    return this.rolesService.setRolePermissions(
+      { roleId: id, permissionIds: dto.permissionIds },
+      user,
+      context,
+    );
   }
 
   @Roles('ADMIN')

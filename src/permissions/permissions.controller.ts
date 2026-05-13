@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
@@ -53,6 +53,17 @@ export class PermissionsController {
     @RequestContext() context: RequestContextData,
   ) {
     return this.permissionsService.updatePermission(id, dto, user, context);
+  }
+
+  @Roles('ADMIN')
+  @Permissions('MANAGE_PERMISSIONS')
+  @Delete(':id')
+  async deletePermission(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtUser,
+    @RequestContext() context: RequestContextData,
+  ) {
+    return this.permissionsService.deletePermission(id, user, context);
   }
 
   @Roles('ADMIN')
