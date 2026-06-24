@@ -204,6 +204,8 @@ export class InboundService implements OnModuleDestroy {
       .del(this.messagesKey(contactKey))
       .exec();
 
+    let dispatchStatus: 'success' | 'error' = 'success';
+
     try {
       // Envía el lote a ms-ai y espera la respuesta (timeout: 10s).
       const response = await firstValueFrom(
@@ -235,7 +237,8 @@ export class InboundService implements OnModuleDestroy {
 
       await this.emitChannelResponse(aiPayload, response);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      dispatchStatus = 'error';
+      const message = this.stringifyError(error);
 
       const dispatchResult: AiDispatchResult = {
         correlationId: aiPayload.correlationId,
@@ -256,9 +259,62 @@ export class InboundService implements OnModuleDestroy {
       );
     }
 
-    this.logger.log(
-      `[${aiPayload.correlationId}] Lote consolidado despachado a ms-ai | contactKey=${contactKey} | mensajes=${messages.length}`,
-    );
+    if (dispatchStatus === 'success') {
+      this.logger.log(
+        `[${aiPayload.correlationId}] Lote consolidado despachado a ms-ai | contactKey=${contactKey} | mensajes=${messages.length}`,
+      );
+    } else {
+      this.logger.warn(
+        `[${aiPayload.correlationId}] Lote consolidado con error en ms-ai | contactKey=${contactKey} | mensajes=${messages.length}`,
+      );
+    }
+  }
+
+  private stringifyError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    if (error && typeof error === 'object') {
+      const asRecord = error as Record<string, unknown>;
+
+      const response = asRecord.response;
+      if (typeof response === 'string') {
+        return response;
+      }
+
+      if (response && typeof response === 'object') {
+        const responseRecord = response as Record<string, unknown>;
+        const nestedMessage = responseRecord.message;
+
+        if (typeof nestedMessage === 'string') {
+          return nestedMessage;
+        }
+
+        if (Array.isArray(nestedMessage)) {
+          return nestedMessage
+            .map((item) => String(item))
+            .join(', ');
+        }
+      }
+
+      const topMessage = asRecord.message;
+      if (typeof topMessage === 'string') {
+        return topMessage;
+      }
+
+      try {
+        return JSON.stringify(error);
+      } catch {
+        return String(error);
+      }
+    }
+
+    return String(error);
   }
 
   private dispatchKey(contactKey: string): string {
