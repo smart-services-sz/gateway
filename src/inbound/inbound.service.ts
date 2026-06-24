@@ -3,50 +3,22 @@ import { ClientProxy } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom, timeout } from 'rxjs';
 import {
-  ChannelIdentityType,
   ChannelType,
   CreateInboundMessageDto,
 } from './dto/create-inbound-message.dto';
 import { RedisService } from '../redis/redis.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
-
-// Mensaje ya validado y normalizado, listo para ser procesado internamente.
-type SanitizedInboundMessage = {
-  channel: ChannelType;
-  contactKey: string;
-  channelIdentity: {
-    type: ChannelIdentityType;
-    value: string;
-    normalizedValue: string;
-  };
-  externalMessageId?: string;
-  messageText: string;
-  receivedAt: string;
-  responseWindow: {
-    debounceMs: number;
-    delayMs: number;
-    maxAccumulationMs?: number;
-  };
-  metadata?: Record<string, unknown>;
-};
-
-// Registro individual de un mensaje almacenado en el buffer Redis antes del dispatch.
-type MessageRecord = {
-  messageText: string;
-  receivedAt: string;
-  externalMessageId?: string;
-  metadata?: Record<string, unknown>;
-};
-
-// Estado de conversación del contacto en Redis: cuántos mensajes lleva y cuándo fue el último.
-type InboundContext = {
-  contactKey: string;
-  channel: ChannelType;
-  channelIdentity: SanitizedInboundMessage['channelIdentity'];
-  messageCount: number;
-  lastReceivedAt: string;
-  updatedAt: string;
-};
+import { AbstractWebhookHandler } from './handlers/abstract-webhook.handler';
+import { SanitizeWebhookHandler } from './handlers/sanitize-webhook.handler';
+import { IdempotencyWebhookHandler } from './handlers/idempotency-webhook.handler';
+import { PersistContextWebhookHandler } from './handlers/persist-context-webhook.handler';
+import { DebounceDispatchWebhookHandler } from './handlers/debounce-dispatch-webhook.handler';
+import {
+  InboundContext,
+  MessageRecord,
+  SanitizedInboundMessage,
+  WebhookProcessingContext,
+} from './handlers/webhook-processing-context';
 
 // Resultado del request/reply a ms-ai; se persiste en Redis para consulta de diagnóstico.
 type AiDispatchResult = {
@@ -87,13 +59,12 @@ export type AiInboundPayload = {
 export class InboundService implements OnModuleDestroy {
   private readonly logger = new Logger(InboundService.name);
   private readonly keyPrefix = 'gateway:inbound'; // Prefijo de todas las claves Redis de este servicio.
-  private readonly idempotencyTtlSeconds: number;  // TTL para claves de idempotencia (default: 24h).
   private readonly contextTtlSeconds: number;       // TTL para contexto y buffer de mensajes (default: 24h).
-  private readonly messageHistoryLimit: number;     // Máximo de mensajes a mantener en el buffer Redis.
-  private readonly minDebounceMsDefault: number;    // Debounce mínimo para canales genéricos.
-  private readonly minDebounceMsWhatsapp: number;   // Debounce mínimo específico para WhatsApp (más largo).
-  private readonly timers = new Map<string, NodeJS.Timeout>(); // Timers de debounce activos por contactKey.
-  private readonly windowStartMs = new Map<string, number>();  // Timestamp de inicio de ventana de acumulación.
+
+  // Cabeza de la cadena de responsabilidad: Sanitize → Idempotency → PersistContext → DebounceDispatch.
+  private readonly processingChain: AbstractWebhookHandler;
+  // Referencia directa al último handler para poder llamar destroy() en onModuleDestroy.
+  private readonly debounceHandler: DebounceDispatchWebhookHandler;
 
   constructor(
     private readonly redisService: RedisService,
@@ -101,68 +72,48 @@ export class InboundService implements OnModuleDestroy {
     private readonly whatsappService: WhatsappService,
     @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
   ) {
-    this.idempotencyTtlSeconds = this.intFromConfig(
-      'INBOUND_IDEMPOTENCY_TTL_SECONDS',
-      86400,
+    this.contextTtlSeconds = this.intFromConfig('INBOUND_CONTEXT_TTL_SECONDS', 86400);
+
+    // Construye la cadena de responsabilidad una sola vez en el constructor.
+    const sanitize = new SanitizeWebhookHandler(
+      this.intFromConfig('INBOUND_MIN_DEBOUNCE_MS', 800),
+      this.intFromConfig('INBOUND_MIN_DEBOUNCE_WHATSAPP_MS', 2000),
     );
-    this.contextTtlSeconds = this.intFromConfig(
-      'INBOUND_CONTEXT_TTL_SECONDS',
-      86400,
+    const idempotency = new IdempotencyWebhookHandler(
+      redisService,
+      this.intFromConfig('INBOUND_IDEMPOTENCY_TTL_SECONDS', 86400),
+      this.keyPrefix,
     );
-    this.messageHistoryLimit = this.intFromConfig(
-      'INBOUND_MESSAGE_HISTORY_LIMIT',
-      20,
+    const persistCtx = new PersistContextWebhookHandler(
+      redisService,
+      this.contextTtlSeconds,
+      this.intFromConfig('INBOUND_MESSAGE_HISTORY_LIMIT', 20),
+      this.keyPrefix,
     );
-    this.minDebounceMsDefault = this.intFromConfig('INBOUND_MIN_DEBOUNCE_MS', 800);
-    this.minDebounceMsWhatsapp = this.intFromConfig(
-      'INBOUND_MIN_DEBOUNCE_WHATSAPP_MS',
-      2000,
+    this.debounceHandler = new DebounceDispatchWebhookHandler(
+      (contactKey, payload) => this.consolidateAndDispatch(contactKey, payload),
     );
+
+    // Encadena los handlers con fluent API: setNext retorna el handler recibido.
+    sanitize.setNext(idempotency).setNext(persistCtx).setNext(this.debounceHandler);
+    this.processingChain = sanitize;
   }
 
   // Al destruir el módulo, cancela todos los timers pendientes para evitar callbacks huérfanos.
   onModuleDestroy(): void {
-    for (const timer of this.timers.values()) {
-      clearTimeout(timer);
-    }
-    this.timers.clear();
-    this.windowStartMs.clear();
+    this.debounceHandler.destroy();
   }
 
-  // Punto de entrada principal. Recibe el DTO del controller, normaliza el payload,
-  // verifica idempotencia, persiste en el buffer y programa el debounce.
+  // Punto de entrada principal. Crea el WebhookProcessingContext y lo pasa al inicio de la cadena.
+  // El contexto se enriquece en cada handler; el resultado final está en ctx.result.
   async receiveMessage(payload: CreateInboundMessageDto) {
-    const sanitized = this.sanitizePayload(payload);
-    const isDuplicate = await this.isDuplicateMessage(sanitized);
-
-    // Si el externalMessageId ya fue procesado, se descarta sin reenviar a ms-ai.
-    if (isDuplicate) {
-      return {
-        status: 'accepted_duplicate',
-        message: 'Mensaje duplicado detectado, no se reprocesa',
-        data: {
-          contactKey: sanitized.contactKey,
-          externalMessageId: sanitized.externalMessageId,
-        },
-      };
-    }
-
-    const context = await this.persistConversationContext(sanitized);
-    this.scheduleDebounce(sanitized); // Inicia o reinicia el timer de debounce.
-
-    return {
-      status: 'accepted_buffered',
-      message: 'Mensaje recibido, sanitizado y bufferizado en gateway',
-      data: {
-        contactKey: sanitized.contactKey,
-        channel: sanitized.channel,
-        channelIdentity: sanitized.channelIdentity,
-        messageText: sanitized.messageText,
-        receivedAt: sanitized.receivedAt,
-        responseWindow: sanitized.responseWindow,
-        context,
-      },
+    const ctx: WebhookProcessingContext = {
+      raw: payload,
+      isDuplicate: false,
+      stopProcessing: false,
     };
+    const result = await this.processingChain.handle(ctx);
+    return result.result;
   }
 
   async getContext(contactKey: string) {
@@ -203,54 +154,6 @@ export class InboundService implements OnModuleDestroy {
         ? (JSON.parse(outboundRaw) as OutboundChannelMessage)
         : null,
     };
-  }
-
-  // Gestiona el debounce por contactKey.
-  // Cada mensaje nuevo reinicia el timer. Si se supera maxAccumulationMs, despacha inmediatamente
-  // sin esperar más mensajes (evita que una conversación muy activa nunca se envíe).
-  private scheduleDebounce(payload: SanitizedInboundMessage): void {
-    const { contactKey, responseWindow } = payload;
-    const { debounceMs, maxAccumulationMs } = responseWindow;
-    const now = Date.now();
-
-    if (!this.windowStartMs.has(contactKey)) {
-      this.windowStartMs.set(contactKey, now); // Primer mensaje: inicia la ventana.
-    }
-
-    const windowStart = this.windowStartMs.get(contactKey)!;
-    const elapsed = now - windowStart;
-
-    // Si ya se consumió toda la ventana de acumulación, despacha de inmediato.
-    if (maxAccumulationMs !== undefined && elapsed >= maxAccumulationMs) {
-      this.clearTimer(contactKey);
-      this.windowStartMs.delete(contactKey);
-      void this.consolidateAndDispatch(contactKey, payload);
-      return;
-    }
-
-    // El delay efectivo es el mínimo entre debounceMs y el tiempo restante de la ventana.
-    let delay = debounceMs;
-    if (maxAccumulationMs !== undefined) {
-      const remaining = maxAccumulationMs - elapsed;
-      delay = Math.min(debounceMs, remaining);
-    }
-
-    // Cancela el timer anterior y crea uno nuevo (patrón debounce clásico).
-    this.clearTimer(contactKey);
-    const timer = setTimeout(() => {
-      this.timers.delete(contactKey);
-      this.windowStartMs.delete(contactKey);
-      void this.consolidateAndDispatch(contactKey, payload);
-    }, delay);
-    this.timers.set(contactKey, timer);
-  }
-
-  private clearTimer(contactKey: string): void {
-    const existing = this.timers.get(contactKey);
-    if (existing) {
-      clearTimeout(existing);
-      this.timers.delete(contactKey);
-    }
   }
 
   // Lee todos los mensajes acumulados en Redis, los ordena cronológicamente y
@@ -358,188 +261,6 @@ export class InboundService implements OnModuleDestroy {
     );
   }
 
-  // Verifica idempotencia usando SET NX (solo si no existe).
-  // Si la clave ya existe en Redis, el mensaje ya fue procesado → es duplicado.
-  // La clave incluye canal + externalMessageId para evitar colisiones entre canales.
-  private async isDuplicateMessage(
-    payload: SanitizedInboundMessage,
-  ): Promise<boolean> {
-    if (!payload.externalMessageId) {
-      return false; // Sin ID externo no podemos garantizar idempotencia; se procesa igual.
-    }
-
-    const key = this.idempotencyKey(payload.channel, payload.externalMessageId);
-    const client = this.redisService.getClient();
-    const wasSet = await client.set(key, payload.receivedAt, {
-      NX: true,          // Solo escribe si la clave no existe.
-      EX: this.idempotencyTtlSeconds,
-    });
-
-    return wasSet !== 'OK'; // 'OK' = se escribió ahora (primer vez); null = ya existía (duplicado).
-  }
-
-  // Actualiza el contexto del contacto y agrega el mensaje al buffer Redis.
-  // Usa lPush + lTrim para mantener el buffer acotado a messageHistoryLimit.
-  // Todo en una transacción atómica para consistencia.
-  private async persistConversationContext(
-    payload: SanitizedInboundMessage,
-  ): Promise<InboundContext> {
-    const client = this.redisService.getClient();
-    const contextKey = this.contextKey(payload.contactKey);
-    const messagesKey = this.messagesKey(payload.contactKey);
-
-    const existing = await client.get(contextKey);
-    const parsedExisting: InboundContext | null = existing
-      ? (JSON.parse(existing) as InboundContext)
-      : null;
-
-    const context: InboundContext = {
-      contactKey: payload.contactKey,
-      channel: payload.channel,
-      channelIdentity: payload.channelIdentity,
-      messageCount: (parsedExisting?.messageCount || 0) + 1, // Incrementa contador acumulado.
-      lastReceivedAt: payload.receivedAt,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const messageRecord: MessageRecord = {
-      messageText: payload.messageText,
-      receivedAt: payload.receivedAt,
-      externalMessageId: payload.externalMessageId,
-      metadata: payload.metadata,
-    };
-
-    await client
-      .multi()
-      .set(contextKey, JSON.stringify(context), {
-        EX: this.contextTtlSeconds,
-      })
-      .lPush(messagesKey, JSON.stringify(messageRecord))    // Agrega al inicio de la lista.
-      .lTrim(messagesKey, 0, this.messageHistoryLimit - 1)  // Mantiene solo los N más recientes.
-      .expire(messagesKey, this.contextTtlSeconds)
-      .exec();
-
-    return context;
-  }
-
-  // Normaliza y valida el payload crudo del canal:
-  // - Elimina espacios extra en textos
-  // - Aplica el debounce mínimo según canal
-  // - Construye el contactKey canónico (channel:identityType:normalizedValue)
-  private sanitizePayload(payload: CreateInboundMessageDto): SanitizedInboundMessage {
-    const identityValue = this.normalizeWhitespace(payload.channelIdentity.value);
-
-    const identityNormalized =
-      payload.channelIdentity.normalizedValue?.trim() ||
-      this.normalizeIdentity(payload.channelIdentity.type, identityValue);
-
-    const sanitizedIdentity = {
-      type: payload.channelIdentity.type,
-      value: identityValue,
-      normalizedValue: identityNormalized,
-    };
-
-    const responseWindow = {
-      debounceMs: Math.max(
-        this.clampInt(payload.responseWindow.debounceMs, 0, 60000),
-        this.getMinDebounceMsByChannel(payload.channel),
-      ),
-      delayMs: this.clampInt(payload.responseWindow.delayMs, 0, 60000),
-      maxAccumulationMs:
-        payload.responseWindow.maxAccumulationMs === undefined
-          ? undefined
-          : this.clampInt(payload.responseWindow.maxAccumulationMs, 0, 120000),
-    };
-
-    return {
-      channel: payload.channel,
-      contactKey: this.buildContactKey(
-        payload.channel,
-        payload.channelIdentity.type,
-        sanitizedIdentity.normalizedValue,
-      ),
-      channelIdentity: sanitizedIdentity,
-      externalMessageId: payload.externalMessageId
-        ? this.normalizeWhitespace(payload.externalMessageId)
-        : undefined,
-      messageText: this.normalizeWhitespace(payload.messageText),
-      receivedAt: payload.receivedAt || new Date().toISOString(),
-      responseWindow,
-      metadata: this.sanitizeMetadata(payload.metadata),
-    };
-  }
-
-  // WhatsApp tiene debounce más largo porque los usuarios suelen enviar varios mensajes cortos seguidos.
-  private getMinDebounceMsByChannel(channel: ChannelType): number {
-    if (channel === ChannelType.WHATSAPP) {
-      return this.minDebounceMsWhatsapp;
-    }
-
-    return this.minDebounceMsDefault;
-  }
-
-  // Normaliza el identificador según su tipo:
-  // PHONE → solo dígitos (elimina +, espacios, guiones)
-  // EMAIL → minúsculas sin espacios
-  // Otros → normalización de espacios
-  private normalizeIdentity(type: ChannelIdentityType, value: string): string {
-    if (type === ChannelIdentityType.PHONE) {
-      return value.replace(/\D/g, '');
-    }
-
-    if (type === ChannelIdentityType.EMAIL) {
-      return value.trim().toLowerCase();
-    }
-
-    return this.normalizeWhitespace(value);
-  }
-
-  private buildContactKey(
-    channel: ChannelType,
-    identityType: ChannelIdentityType,
-    normalizedValue: string,
-  ): string {
-    return `${channel}:${identityType}:${normalizedValue}`;
-  }
-
-  private normalizeWhitespace(value: string): string {
-    return value.trim().replace(/\s+/g, ' ');
-  }
-
-  private clampInt(value: number, min: number, max: number): number {
-    return Math.min(Math.max(Math.trunc(value), min), max);
-  }
-
-  private sanitizeMetadata(
-    metadata?: Record<string, unknown>,
-  ): Record<string, unknown> | undefined {
-    if (!metadata) {
-      return undefined;
-    }
-
-    return Object.entries(metadata).reduce<Record<string, unknown>>(
-      (acc, [key, value]) => {
-        const sanitizedKey = this.normalizeWhitespace(key);
-
-        if (typeof value === 'string') {
-          acc[sanitizedKey] = this.normalizeWhitespace(value);
-          return acc;
-        }
-
-        if (Array.isArray(value)) {
-          acc[sanitizedKey] = value.map((item) =>
-            typeof item === 'string' ? this.normalizeWhitespace(item) : item,
-          );
-          return acc;
-        }
-
-        acc[sanitizedKey] = value;
-        return acc;
-      },
-      {},
-    );
-  }
-
   private dispatchKey(contactKey: string): string {
     return `${this.keyPrefix}:dispatch:${contactKey}`;
   }
@@ -550,10 +271,6 @@ export class InboundService implements OnModuleDestroy {
 
   private outboundMessageKey(contactKey: string): string {
     return `${this.keyPrefix}:outbound:${contactKey}`;
-  }
-
-  private idempotencyKey(channel: string, externalMessageId: string): string {
-    return `${this.keyPrefix}:idempotency:${channel}:${externalMessageId}`;
   }
 
   private contextKey(contactKey: string): string {
