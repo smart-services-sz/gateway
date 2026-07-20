@@ -102,7 +102,7 @@ export class RoutingController {
   @Post('assigned-route')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Obtiene la ruta actualmente asignada para una cuadrilla o agente operativo',
+    summary: 'Obtiene la ruta actualmente asignada para un usuario operativo',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Ruta asignada obtenida' })
   getAssignedRoute(@Body() payload: GetAssignedRouteDto) {
