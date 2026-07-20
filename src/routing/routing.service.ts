@@ -62,6 +62,10 @@ export class RoutingService {
     return this.request('routing.plan.confirm', { id });
   }
 
+  deletePlan(id: string) {
+    return this.request('routing.plan.delete', { id });
+  }
+
   getAssignedRoute(payload: GetAssignedRouteDto) {
     return this.request('routing.assigned-route.get', payload);
   }

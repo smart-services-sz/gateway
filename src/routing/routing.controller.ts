@@ -147,6 +147,18 @@ export class RoutingController {
     return this.routingService.confirmPlan(id);
   }
 
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('MANAGE_RECLAMOS')
+  @Delete('plans/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Elimina un plan de rutas persistido',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Plan eliminado' })
+  deletePlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.routingService.deletePlan(id);
+  }
+
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
   @Permissions('VIEW_RECLAMOS')
   @Post('assigned-route')
