@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -19,6 +20,7 @@ import { GetAssignedRouteDto } from './dto/get-assigned-route.dto';
 import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
 import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
+import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
 
 @ApiTags('Routing')
 @Controller('routing')
@@ -71,6 +73,42 @@ export class RoutingController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Reglas obtenidas' })
   getRules() {
     return this.routingService.getRules();
+  }
+
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('VIEW_RECLAMOS')
+  @Get('area-plans')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Obtiene planes por area persistidos',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Planes por area obtenidos' })
+  listAreaPlans() {
+    return this.routingService.listAreaPlans();
+  }
+
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('MANAGE_RECLAMOS')
+  @Post('area-plans')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Crea o actualiza un plan por area',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Plan por area guardado' })
+  saveAreaPlan(@Body() payload: SaveRoutingAreaPlanDto) {
+    return this.routingService.saveAreaPlan(payload);
+  }
+
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('MANAGE_RECLAMOS')
+  @Delete('area-plans/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Elimina un plan por area',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Plan por area eliminado' })
+  deleteAreaPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.routingService.deleteAreaPlan(id);
   }
 
   @Roles('ADMIN', 'AGENT')

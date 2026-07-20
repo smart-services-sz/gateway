@@ -14,6 +14,7 @@ import { GetAssignedRouteDto } from './dto/get-assigned-route.dto';
 import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
 import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
+import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
 
 @Injectable()
 export class RoutingService {
@@ -35,6 +36,18 @@ export class RoutingService {
 
   getRules() {
     return this.request('routing.rules.get', {});
+  }
+
+  listAreaPlans() {
+    return this.request('routing.area-plans.list', {});
+  }
+
+  saveAreaPlan(payload: SaveRoutingAreaPlanDto) {
+    return this.request('routing.area-plans.save', payload);
+  }
+
+  deleteAreaPlan(id: string) {
+    return this.request('routing.area-plans.delete', { id });
   }
 
   getPlan(id: string) {
