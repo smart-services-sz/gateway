@@ -88,6 +88,18 @@ export class RoutingController {
   }
 
   @Roles('ADMIN', 'AGENT')
+  @Permissions('VIEW_RECLAMOS')
+  @Get('plans')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Obtiene historial de planes de rutas persistidos',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Historial de planes obtenido' })
+  listPlans() {
+    return this.routingService.listPlans();
+  }
+
+  @Roles('ADMIN', 'AGENT')
   @Permissions('MANAGE_RECLAMOS')
   @Post('area-plans')
   @HttpCode(HttpStatus.OK)

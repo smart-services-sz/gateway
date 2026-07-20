@@ -38,6 +38,10 @@ export class RoutingService {
     return this.request('routing.rules.get', {});
   }
 
+  listPlans() {
+    return this.request('routing.plans.list', {});
+  }
+
   listAreaPlans() {
     return this.request('routing.area-plans.list', {});
   }
