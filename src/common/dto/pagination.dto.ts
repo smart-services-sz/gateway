@@ -1,5 +1,5 @@
-import { IsOptional, IsInt, Min, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsInt, Min, IsString, IsBoolean } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class PaginationDto {
   @IsOptional()
@@ -21,4 +21,25 @@ export class PaginationDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
 }
