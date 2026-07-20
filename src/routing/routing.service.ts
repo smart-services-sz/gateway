@@ -10,6 +10,10 @@ import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { SimulateRoutingDto } from './dto/simulate-routing.dto';
 import { UpsertRoutingRulesDto } from './dto/upsert-routing-rules.dto';
+import { GetAssignedRouteDto } from './dto/get-assigned-route.dto';
+import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
+import { RegisterInterventionDto } from './dto/register-intervention.dto';
+import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
 
 @Injectable()
 export class RoutingService {
@@ -39,6 +43,22 @@ export class RoutingService {
 
   confirmPlan(id: string) {
     return this.request('routing.plan.confirm', { id });
+  }
+
+  getAssignedRoute(payload: GetAssignedRouteDto) {
+    return this.request('routing.assigned-route.get', payload);
+  }
+
+  updateRouteStatus(payload: UpdateRouteStatusDto) {
+    return this.request('routing.route.status.update', payload);
+  }
+
+  registerIntervention(payload: RegisterInterventionDto) {
+    return this.request('routing.intervention.register', payload);
+  }
+
+  attachInterventionEvidence(payload: AttachInterventionEvidenceDto) {
+    return this.request('routing.intervention.evidence.attach', payload);
   }
 
   private async request<T = unknown>(pattern: string, payload: unknown): Promise<T> {
