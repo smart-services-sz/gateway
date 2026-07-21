@@ -50,12 +50,12 @@ export class SaveRoutingAreaPlanDto {
   @ApiProperty()
   @IsInt()
   @Min(1)
-  @Max(1000)
+  @Max(20)
   dailyByUser!: number;
 
   @ApiProperty()
   @IsInt()
   @Min(1)
-  @Max(1000)
+  @Max(20)
   dailyByCategory!: number;
 }
