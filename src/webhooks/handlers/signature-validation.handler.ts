@@ -19,7 +19,10 @@ export class SignatureValidationHandler implements WebhookHandler {
     return handler;
   }
 
-  async handle(payload: Record<string, unknown>, context: WebhookContext): Promise<void> {
+  async handle(
+    payload: Record<string, unknown>,
+    context: WebhookContext,
+  ): Promise<void> {
     if (context.stopped) return;
 
     this.validateSignature(context.rawBody, context.signatureHeader);

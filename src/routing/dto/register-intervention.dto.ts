@@ -10,9 +10,20 @@ export class RegisterInterventionDto {
   @IsUUID('4')
   stopId!: string;
 
-  @ApiProperty({ enum: ['resuelto', 'no_resuelto', 'requiere_nueva_visita', 'no_corresponde'] })
+  @ApiProperty({
+    enum: [
+      'resuelto',
+      'no_resuelto',
+      'requiere_nueva_visita',
+      'no_corresponde',
+    ],
+  })
   @IsIn(['resuelto', 'no_resuelto', 'requiere_nueva_visita', 'no_corresponde'])
-  result!: 'resuelto' | 'no_resuelto' | 'requiere_nueva_visita' | 'no_corresponde';
+  result!:
+    | 'resuelto'
+    | 'no_resuelto'
+    | 'requiere_nueva_visita'
+    | 'no_corresponde';
 
   @ApiPropertyOptional({ description: 'Observacion de la intervencion' })
   @IsOptional()
@@ -20,7 +31,9 @@ export class RegisterInterventionDto {
   @MaxLength(2000)
   observation?: string;
 
-  @ApiPropertyOptional({ description: 'Usuario/agente que ejecuta la intervencion' })
+  @ApiPropertyOptional({
+    description: 'Usuario/agente que ejecuta la intervencion',
+  })
   @IsOptional()
   @IsString()
   performedBy?: string;

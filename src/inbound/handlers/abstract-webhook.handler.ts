@@ -14,7 +14,9 @@ export abstract class AbstractWebhookHandler {
   }
 
   // Ejecuta este handler y, si el flujo no fue detenido, pasa el contexto al siguiente.
-  async handle(ctx: WebhookProcessingContext): Promise<WebhookProcessingContext> {
+  async handle(
+    ctx: WebhookProcessingContext,
+  ): Promise<WebhookProcessingContext> {
     if (ctx.stopProcessing) return ctx;
     await this.process(ctx);
     if (!ctx.stopProcessing && this.next) {

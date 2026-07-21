@@ -27,12 +27,30 @@ export class CreateReclamoDto {
   contactKey!: string;
 
   @ApiProperty({
-    enum: ['whatsapp', 'web', 'email', 'instagram', 'facebook', 'manual', 'other'],
+    enum: [
+      'whatsapp',
+      'web',
+      'email',
+      'instagram',
+      'facebook',
+      'manual',
+      'other',
+    ],
   })
-  @IsIn(['whatsapp', 'web', 'email', 'instagram', 'facebook', 'manual', 'other'], {
-    message: 'canal no valido',
-  })
-  canal!: 'whatsapp' | 'web' | 'email' | 'instagram' | 'facebook' | 'manual' | 'other';
+  @IsIn(
+    ['whatsapp', 'web', 'email', 'instagram', 'facebook', 'manual', 'other'],
+    {
+      message: 'canal no valido',
+    },
+  )
+  canal!:
+    | 'whatsapp'
+    | 'web'
+    | 'email'
+    | 'instagram'
+    | 'facebook'
+    | 'manual'
+    | 'other';
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -107,7 +125,9 @@ export class CreateReclamoDto {
     | 'otros';
 
   @ApiProperty({ enum: ['alta', 'media', 'baja'] })
-  @IsIn(['alta', 'media', 'baja'], { message: 'prioridad debe ser alta, media o baja' })
+  @IsIn(['alta', 'media', 'baja'], {
+    message: 'prioridad debe ser alta, media o baja',
+  })
   prioridad!: 'alta' | 'media' | 'baja';
 
   @ApiPropertyOptional({ maxLength: 2000 })

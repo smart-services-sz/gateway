@@ -4,5 +4,8 @@ import { WebhookContext } from './webhook-context';
 // Cada implementación concreta puede detener el flujo seteando context.stopped = true.
 export interface WebhookHandler {
   setNext(handler: WebhookHandler): WebhookHandler;
-  handle(payload: Record<string, unknown>, context: WebhookContext): Promise<void>;
+  handle(
+    payload: Record<string, unknown>,
+    context: WebhookContext,
+  ): Promise<void>;
 }

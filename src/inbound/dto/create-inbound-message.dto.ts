@@ -34,7 +34,10 @@ export enum ChannelIdentityType {
 }
 
 export class ChannelIdentityDto {
-  @ApiProperty({ enum: ChannelIdentityType, example: ChannelIdentityType.PHONE })
+  @ApiProperty({
+    enum: ChannelIdentityType,
+    example: ChannelIdentityType.PHONE,
+  })
   @IsEnum(ChannelIdentityType, {
     message:
       'channelIdentity.type debe ser uno de los siguientes valores: phone, email, session, platform_user_id, custom',
@@ -97,8 +100,7 @@ export class ResponseWindowDto {
   delayMs!: number;
 
   @ApiPropertyOptional({
-    description:
-      'Ventana máxima de acumulación de mensajes en milisegundos.',
+    description: 'Ventana máxima de acumulación de mensajes en milisegundos.',
     example: 8000,
     minimum: 0,
     maximum: 120000,

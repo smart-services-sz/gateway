@@ -23,7 +23,10 @@ export class RateLimitHandler implements WebhookHandler {
     return handler;
   }
 
-  async handle(payload: Record<string, unknown>, context: WebhookContext): Promise<void> {
+  async handle(
+    payload: Record<string, unknown>,
+    context: WebhookContext,
+  ): Promise<void> {
     if (context.stopped) return;
 
     const accountIds = this.extractAccountIds(payload);
@@ -44,7 +47,12 @@ export class RateLimitHandler implements WebhookHandler {
         context.result = {
           status: 'rate_limited',
           message: `Tasa de webhooks excedida para la cuenta ${accountId}. Reintentar después de ${this.windowSeconds}s.`,
-          data: { accountId, current, max: this.maxRequests, windowSeconds: this.windowSeconds },
+          data: {
+            accountId,
+            current,
+            max: this.maxRequests,
+            windowSeconds: this.windowSeconds,
+          },
         };
         return;
       }

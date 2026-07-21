@@ -99,13 +99,17 @@ export class ZoneRuleDto {
 }
 
 export class CrewRuleDto {
-  @ApiPropertyOptional({ description: 'Identificador legado de cuadrilla (alias de userId)' })
+  @ApiPropertyOptional({
+    description: 'Identificador legado de cuadrilla (alias de userId)',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   crewId?: string;
 
-  @ApiPropertyOptional({ description: 'ID del usuario operativo al que se asigna la ruta' })
+  @ApiPropertyOptional({
+    description: 'ID del usuario operativo al que se asigna la ruta',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()

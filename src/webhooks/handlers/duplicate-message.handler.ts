@@ -21,7 +21,10 @@ export class DuplicateMessageHandler implements WebhookHandler {
     return handler;
   }
 
-  async handle(payload: Record<string, unknown>, context: WebhookContext): Promise<void> {
+  async handle(
+    payload: Record<string, unknown>,
+    context: WebhookContext,
+  ): Promise<void> {
     if (context.stopped) return;
 
     const messageIds = this.extractMessageIds(payload);
@@ -51,7 +54,8 @@ export class DuplicateMessageHandler implements WebhookHandler {
       context.stopped = true;
       context.result = {
         status: 'accepted_duplicate',
-        message: 'Webhook duplicado detectado, todos los mensajes ya fueron procesados',
+        message:
+          'Webhook duplicado detectado, todos los mensajes ya fueron procesados',
         data: { messageIds },
       };
       return;
@@ -69,7 +73,8 @@ export class DuplicateMessageHandler implements WebhookHandler {
       const changes = (entry.changes as Array<Record<string, unknown>>) ?? [];
       for (const change of changes) {
         const value = change.value as Record<string, unknown> | undefined;
-        const messages = (value?.messages as Array<Record<string, unknown>>) ?? [];
+        const messages =
+          (value?.messages as Array<Record<string, unknown>>) ?? [];
         for (const message of messages) {
           if (message.id && typeof message.id === 'string') {
             ids.push(message.id);

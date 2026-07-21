@@ -4,9 +4,7 @@ import { PermissionsController } from './permissions.controller';
 import { NatsModule } from '../nats/nats.module';
 
 @Module({
-  imports: [
-    NatsModule
-  ],
+  imports: [NatsModule],
   controllers: [PermissionsController],
   providers: [PermissionsService],
 })

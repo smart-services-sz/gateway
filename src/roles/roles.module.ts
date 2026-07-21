@@ -4,9 +4,7 @@ import { RolesController } from './roles.controller';
 import { NatsModule } from '../nats/nats.module';
 
 @Module({
-  imports: [
-    NatsModule,
-  ],
+  imports: [NatsModule],
   controllers: [RolesController],
   providers: [RolesService],
 })

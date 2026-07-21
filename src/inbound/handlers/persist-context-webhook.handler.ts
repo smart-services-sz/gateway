@@ -22,7 +22,9 @@ export class PersistContextWebhookHandler extends AbstractWebhookHandler {
   }
 
   protected async process(ctx: WebhookProcessingContext): Promise<void> {
-    ctx.persistedContext = await this.persistConversationContext(ctx.sanitized!);
+    ctx.persistedContext = await this.persistConversationContext(
+      ctx.sanitized!,
+    );
   }
 
   private async persistConversationContext(

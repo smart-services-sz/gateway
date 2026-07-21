@@ -32,9 +32,13 @@ export class RoutingController {
   @Post('simulate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Simula asignacion de rutas por categoria, cupos, zonas y cuadrillas',
+    summary:
+      'Simula asignacion de rutas por categoria, cupos, zonas y cuadrillas',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Simulacion ejecutada correctamente' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Simulacion ejecutada correctamente',
+  })
   simulate(@Body() payload: SimulateRoutingDto) {
     return this.routingService.simulate(payload);
   }
@@ -46,7 +50,10 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Genera y persiste un plan de rutas en ms-routing',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Plan generado correctamente' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Plan generado correctamente',
+  })
   generate(@Body() payload: SimulateRoutingDto) {
     return this.routingService.generate(payload);
   }
@@ -56,7 +63,8 @@ export class RoutingController {
   @Put('rules')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Crea o actualiza reglas de categoria, cuadrilla y zona para ruteo',
+    summary:
+      'Crea o actualiza reglas de categoria, cuadrilla y zona para ruteo',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reglas actualizadas' })
   upsertRules(@Body() payload: UpsertRoutingRulesDto) {
@@ -82,7 +90,10 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Obtiene planes por area persistidos',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Planes por area obtenidos' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Planes por area obtenidos',
+  })
   listAreaPlans() {
     return this.routingService.listAreaPlans();
   }
@@ -94,7 +105,10 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Obtiene historial de planes de rutas persistidos',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Historial de planes obtenido' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Historial de planes obtenido',
+  })
   listPlans() {
     return this.routingService.listPlans();
   }
@@ -118,7 +132,10 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Elimina un plan por area',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Plan por area eliminado' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Plan por area eliminado',
+  })
   deleteAreaPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.routingService.deleteAreaPlan(id);
   }
@@ -178,7 +195,10 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Actualiza el estado operativo de una ruta',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Estado de ruta actualizado' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estado de ruta actualizado',
+  })
   updateRouteStatus(@Body() payload: UpdateRouteStatusDto) {
     return this.routingService.updateRouteStatus(payload);
   }
@@ -188,9 +208,13 @@ export class RoutingController {
   @Post('interventions')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Registra una intervencion operativa en un punto de ruta y sincroniza estado del reclamo',
+    summary:
+      'Registra una intervencion operativa en un punto de ruta y sincroniza estado del reclamo',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Intervencion registrada' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Intervencion registrada',
+  })
   registerIntervention(@Body() payload: RegisterInterventionDto) {
     return this.routingService.registerIntervention(payload);
   }

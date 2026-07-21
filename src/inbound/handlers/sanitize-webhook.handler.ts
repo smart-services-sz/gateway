@@ -27,8 +27,12 @@ export class SanitizeWebhookHandler extends AbstractWebhookHandler {
     ctx.sanitized = this.sanitizePayload(ctx.raw);
   }
 
-  private sanitizePayload(payload: CreateInboundMessageDto): SanitizedInboundMessage {
-    const identityValue = this.normalizeWhitespace(payload.channelIdentity.value);
+  private sanitizePayload(
+    payload: CreateInboundMessageDto,
+  ): SanitizedInboundMessage {
+    const identityValue = this.normalizeWhitespace(
+      payload.channelIdentity.value,
+    );
 
     const identityNormalized =
       payload.channelIdentity.normalizedValue?.trim() ||

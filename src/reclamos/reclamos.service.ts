@@ -16,7 +16,9 @@ import { UpdateReclamoDto } from './dto/update-reclamo.dto';
 export class ReclamosService {
   private readonly logger = new Logger(ReclamosService.name);
 
-  constructor(@Inject('NATS_CLIENT') private readonly natsClient: ClientProxy) {}
+  constructor(
+    @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
+  ) {}
 
   create(payload: CreateReclamoDto) {
     return this.request('reclamos.create', payload);
@@ -38,7 +40,10 @@ export class ReclamosService {
     return this.request('reclamos.remove', { id });
   }
 
-  private async request<T = unknown>(pattern: string, payload: unknown): Promise<T> {
+  private async request<T = unknown>(
+    pattern: string,
+    payload: unknown,
+  ): Promise<T> {
     try {
       return await firstValueFrom(
         this.natsClient.send<T>(pattern, payload).pipe(timeout(10000)),
@@ -79,16 +84,22 @@ export class ReclamosService {
       return new BadGatewayException(error.message);
     }
 
-    return new BadGatewayException('Error inesperado al comunicarse con ms-reclamos');
+    return new BadGatewayException(
+      'Error inesperado al comunicarse con ms-reclamos',
+    );
   }
 
-  private extractStatusCode(error: Record<string, unknown>): number | undefined {
+  private extractStatusCode(
+    error: Record<string, unknown>,
+  ): number | undefined {
     const direct = error.statusCode;
     if (typeof direct === 'number') {
       return direct;
     }
 
-    const nested = this.isRecord(error.error) ? error.error.statusCode : undefined;
+    const nested = this.isRecord(error.error)
+      ? error.error.statusCode
+      : undefined;
     if (typeof nested === 'number') {
       return nested;
     }

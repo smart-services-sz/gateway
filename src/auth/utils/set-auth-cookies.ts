@@ -10,7 +10,7 @@ export function setAuthCookies(
 
   const cookieOptions = {
     httpOnly: true,
-    secure: isProd,       // en Railway debe ser true
+    secure: isProd, // en Railway debe ser true
     sameSite: isProd ? 'none' : 'lax', // 👈 CLAVE
   } as const;
 

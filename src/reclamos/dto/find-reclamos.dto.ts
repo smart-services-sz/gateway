@@ -14,7 +14,9 @@ export class FindReclamosDto extends PaginationQueryDto {
   @IsString({ message: 'codigoSeguimiento debe ser una cadena de texto' })
   codigoSeguimiento?: string;
 
-  @ApiPropertyOptional({ enum: ['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'] })
+  @ApiPropertyOptional({
+    enum: ['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'],
+  })
   @IsOptional()
   @IsIn(['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'], {
     message: 'estado no valido',

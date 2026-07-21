@@ -20,7 +20,9 @@ import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
 export class RoutingService {
   private readonly logger = new Logger(RoutingService.name);
 
-  constructor(@Inject('NATS_CLIENT') private readonly natsClient: ClientProxy) {}
+  constructor(
+    @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
+  ) {}
 
   simulate(payload: SimulateRoutingDto) {
     return this.request('routing.simulate', payload);
@@ -82,13 +84,18 @@ export class RoutingService {
     return this.request('routing.intervention.evidence.attach', payload);
   }
 
-  private async request<T = unknown>(pattern: string, payload: unknown): Promise<T> {
+  private async request<T = unknown>(
+    pattern: string,
+    payload: unknown,
+  ): Promise<T> {
     try {
       return await firstValueFrom(
         this.natsClient.send<T>(pattern, payload).pipe(timeout(15000)),
       );
     } catch (error: unknown) {
-      this.logger.error(`Error RPC en patron ${pattern}: ${this.stringifyError(error)}`);
+      this.logger.error(
+        `Error RPC en patron ${pattern}: ${this.stringifyError(error)}`,
+      );
       throw this.mapRpcError(error);
     }
   }
@@ -106,7 +113,10 @@ export class RoutingService {
         return new HttpException(message, statusCode);
       }
 
-      if (message.toLowerCase().includes('no existe') || message.toLowerCase().includes('no hay')) {
+      if (
+        message.toLowerCase().includes('no existe') ||
+        message.toLowerCase().includes('no hay')
+      ) {
         return new HttpException(message, HttpStatus.NOT_FOUND);
       }
 
@@ -117,16 +127,22 @@ export class RoutingService {
       return new BadGatewayException(error.message);
     }
 
-    return new BadGatewayException('Error inesperado al comunicarse con ms-routing');
+    return new BadGatewayException(
+      'Error inesperado al comunicarse con ms-routing',
+    );
   }
 
-  private extractStatusCode(error: Record<string, unknown>): number | undefined {
+  private extractStatusCode(
+    error: Record<string, unknown>,
+  ): number | undefined {
     const direct = error.statusCode;
     if (typeof direct === 'number') {
       return direct;
     }
 
-    const nested = this.isRecord(error.error) ? error.error.statusCode : undefined;
+    const nested = this.isRecord(error.error)
+      ? error.error.statusCode
+      : undefined;
     if (typeof nested === 'number') {
       return nested;
     }

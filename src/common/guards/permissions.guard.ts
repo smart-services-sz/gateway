@@ -26,7 +26,7 @@ export class PermissionsGuard implements CanActivate {
       ? user.permissions
       : [];
 
-    const ok = required.every(p => userPerms.includes(p));
+    const ok = required.every((p) => userPerms.includes(p));
 
     if (!ok) throw new ForbiddenException('No tenés permisos suficientes');
     return true;

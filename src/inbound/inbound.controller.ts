@@ -8,12 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateInboundMessageDto } from './dto/create-inbound-message.dto';
 import { InboundService } from './inbound.service';
 import { Public } from '../auth/decorators/public.decorator';
@@ -27,7 +22,7 @@ export class InboundController {
   // POST /api/inbound/messages
   // Punto de entrada HTTP para mensajes de cualquier canal.
   // Responde con 202 Accepted: el mensaje fue recibido y encolado, pero aún no procesado por IA.
-    @Public()
+  @Public()
   @Post('messages')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Recibe mensajes inbound desde distintos canales' })
@@ -42,11 +37,12 @@ export class InboundController {
   // GET /api/inbound/messages/context?contactKey=whatsapp:phone:5491166660000
   // Endpoint de diagnóstico: devuelve el estado actual del contacto en Redis
   // (contexto, buffer de mensajes, último dispatch a ms-ai y último mensaje saliente).
-    @Roles('ADMIN')
+  @Roles('ADMIN')
   @Get('messages/context')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Consulta contexto, buffer de mensajes y lote pendiente de envío a ms-ai por contactKey',
+    summary:
+      'Consulta contexto, buffer de mensajes y lote pendiente de envío a ms-ai por contactKey',
   })
   @ApiQuery({
     name: 'contactKey',

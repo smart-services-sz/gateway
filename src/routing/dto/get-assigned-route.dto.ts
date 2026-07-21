@@ -2,7 +2,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class GetAssignedRouteDto {
-  @ApiPropertyOptional({ description: 'Identificador legado de cuadrilla/agente (alias de userId)' })
+  @ApiPropertyOptional({
+    description: 'Identificador legado de cuadrilla/agente (alias de userId)',
+  })
   @IsOptional()
   @IsString()
   crewId?: string;

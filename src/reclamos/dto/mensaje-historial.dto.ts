@@ -1,9 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class MensajeHistorialDto {
   @ApiProperty({ enum: ['usuario', 'asistente'] })
-  @IsIn(['usuario', 'asistente'], { message: 'origen debe ser usuario o asistente' })
+  @IsIn(['usuario', 'asistente'], {
+    message: 'origen debe ser usuario o asistente',
+  })
   origen!: 'usuario' | 'asistente';
 
   @ApiProperty()

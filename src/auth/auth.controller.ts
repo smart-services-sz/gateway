@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { AUTH_COOKIES } from './constants/auth-cookies';
@@ -6,7 +18,10 @@ import { clearAuthCookies, setAuthCookies } from './utils/set-auth-cookies';
 import { Public } from './decorators/public.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { RequestContext, type RequestContextData } from '../common/decorators/request-context.decorator';
+import {
+  RequestContext,
+  type RequestContextData,
+} from '../common/decorators/request-context.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -27,8 +42,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @RequestContext() context: RequestContextData,
   ) {
-    const { accessToken, refreshToken, user } =
-      await this.authService.login(dto, context);
+    const { accessToken, refreshToken, user } = await this.authService.login(
+      dto,
+      context,
+    );
 
     setAuthCookies(res, accessToken, refreshToken);
 

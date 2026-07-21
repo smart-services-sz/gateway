@@ -6,14 +6,8 @@ import { NatsModule } from '../nats/nats.module';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
-  imports: [
-    PassportModule,
-    NatsModule,
-  ],
+  imports: [PassportModule, NatsModule],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtStrategy,
-  ],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}

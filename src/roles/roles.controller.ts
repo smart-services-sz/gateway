@@ -1,9 +1,25 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
-import { RequestContext, type RequestContextData } from '../common/decorators/request-context.decorator';
+import {
+  RequestContext,
+  type RequestContextData,
+} from '../common/decorators/request-context.decorator';
 import { CreateRoleDto } from './dto/create-role.dto';
-import { CurrentUser, type JwtUser } from '../common/decorators/current-user.dto';
+import {
+  CurrentUser,
+  type JwtUser,
+} from '../common/decorators/current-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';

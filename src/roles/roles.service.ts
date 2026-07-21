@@ -9,155 +9,154 @@ import { JwtUser } from '../common/decorators/current-user.dto';
 
 @Injectable()
 export class RolesService {
-    constructor(
-        @Inject('NATS_CLIENT')
-        private readonly natsClient: ClientProxy,
-    ){}
+  constructor(
+    @Inject('NATS_CLIENT')
+    private readonly natsClient: ClientProxy,
+  ) {}
 
-    async getAllRoles(
-        pagination: PaginationDto,
-        context: RequestContextData
-    ){
-        return await firstValueFrom(
-            this.natsClient.send('roles.all', {
-                data: pagination,
-                context,
-            }).pipe(
-                catchError((error) => {
-                    throw error;
-                }),
-            ),
-        );
-    }
+  async getAllRoles(pagination: PaginationDto, context: RequestContextData) {
+    return await firstValueFrom(
+      this.natsClient
+        .send('roles.all', {
+          data: pagination,
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 
-    async getRoleById(
-        id: string,
-        context: RequestContextData,
-    ){
-        return await firstValueFrom(
-            this.natsClient.send('roles.id', {
-                data: { id },
-                context,
-            }).pipe(
-                catchError((error) => {
-                    throw error;
-                }),
-            ),
-        );
-    }
+  async getRoleById(id: string, context: RequestContextData) {
+    return await firstValueFrom(
+      this.natsClient
+        .send('roles.id', {
+          data: { id },
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 
-    async createRole(
-        dto: CreateRoleDto,
-        user: JwtUser,
-        context: RequestContextData,
-    ){
-        return await firstValueFrom(
-            this.natsClient.send('roles.create', {
-                data: {
-                    dto,
-                    user,
-                },
-                context,
-            }).pipe(
-                catchError((error) => {
-                    throw error;
-                }),
-            ),
-        );
-    }
+  async createRole(
+    dto: CreateRoleDto,
+    user: JwtUser,
+    context: RequestContextData,
+  ) {
+    return await firstValueFrom(
+      this.natsClient
+        .send('roles.create', {
+          data: {
+            dto,
+            user,
+          },
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 
-    async updateRole(
-        id: string,
-        dto: UpdateRoleDto,
-        user: JwtUser,
-        context: RequestContextData
-    ){
-        return await firstValueFrom(
-            this.natsClient.send('roles.update', {
-                data: {
-                    id,
-                    dto,
-                    user,
-                },
-                context,
-            }).pipe(
-                catchError((error) => {
-                    throw error;
-                }),
-            ),
-        );
-    }
+  async updateRole(
+    id: string,
+    dto: UpdateRoleDto,
+    user: JwtUser,
+    context: RequestContextData,
+  ) {
+    return await firstValueFrom(
+      this.natsClient
+        .send('roles.update', {
+          data: {
+            id,
+            dto,
+            user,
+          },
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 
-    async deleteRole(
-        id: string,
-        user: JwtUser,
-        context: RequestContextData,
-    ) {
-        return await firstValueFrom(
-            this.natsClient.send('roles.delete', {
-                data: {
-                    id,
-                    user,
-                },
-                context,
-            }).pipe(
-                catchError((error) => {
-                    throw error;
-                }),
-            ),
-        );
-    }
+  async deleteRole(id: string, user: JwtUser, context: RequestContextData) {
+    return await firstValueFrom(
+      this.natsClient
+        .send('roles.delete', {
+          data: {
+            id,
+            user,
+          },
+          context,
+        })
+        .pipe(
+          catchError((error) => {
+            throw error;
+          }),
+        ),
+    );
+  }
 
-    async getUserRoles(
-        userId: string,
-        context: RequestContextData,
-    ){
-        return firstValueFrom(
-            this.natsClient.send('user.roles.get', { 
-                data: { userId }, context 
-            }).pipe(
-                timeout(8000)
-            ),
-        );
-    }
+  async getUserRoles(userId: string, context: RequestContextData) {
+    return firstValueFrom(
+      this.natsClient
+        .send('user.roles.get', {
+          data: { userId },
+          context,
+        })
+        .pipe(timeout(8000)),
+    );
+  }
 
-    async setUserRoles(
+  async setUserRoles(
     dto: { userId: string; rolesIds: string[] },
     user: JwtUser,
     context: RequestContextData,
-    ) {
-        return firstValueFrom(
-            this.natsClient
-            .send('user.roles.set', {
-                data: { dto, user },
-                context,
-            })
-            .pipe(timeout(8000)),
-        );
-    }
+  ) {
+    return firstValueFrom(
+      this.natsClient
+        .send('user.roles.set', {
+          data: { dto, user },
+          context,
+        })
+        .pipe(timeout(8000)),
+    );
+  }
 
-    async getRolePermissions(
-        roleId: string,
-        context: RequestContextData,
-    ) {
-        return firstValueFrom(
-            this.natsClient.send('role.permissions.get', {
-                data: { roleId },
-                context,
-            }).pipe(timeout(8000)),
-        );
-    }
+  async getRolePermissions(roleId: string, context: RequestContextData) {
+    return firstValueFrom(
+      this.natsClient
+        .send('role.permissions.get', {
+          data: { roleId },
+          context,
+        })
+        .pipe(timeout(8000)),
+    );
+  }
 
-    async setRolePermissions(
-        dto: { roleId: string; permissionIds: string[] },
-        user: JwtUser,
-        context: RequestContextData,
-    ) {
-        return firstValueFrom(
-            this.natsClient.send('role.permissions.set', {
-                data: { dto, user },
-                context,
-            }).pipe(timeout(8000)),
-        );
-    }
+  async setRolePermissions(
+    dto: { roleId: string; permissionIds: string[] },
+    user: JwtUser,
+    context: RequestContextData,
+  ) {
+    return firstValueFrom(
+      this.natsClient
+        .send('role.permissions.set', {
+          data: { dto, user },
+          context,
+        })
+        .pipe(timeout(8000)),
+    );
+  }
 }

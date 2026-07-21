@@ -59,7 +59,7 @@ export type AiInboundPayload = {
 export class InboundService implements OnModuleDestroy {
   private readonly logger = new Logger(InboundService.name);
   private readonly keyPrefix = 'gateway:inbound'; // Prefijo de todas las claves Redis de este servicio.
-  private readonly contextTtlSeconds: number;       // TTL para contexto y buffer de mensajes (default: 24h).
+  private readonly contextTtlSeconds: number; // TTL para contexto y buffer de mensajes (default: 24h).
 
   // Cabeza de la cadena de responsabilidad: Sanitize → Idempotency → PersistContext → DebounceDispatch.
   private readonly processingChain: AbstractWebhookHandler;
@@ -72,7 +72,10 @@ export class InboundService implements OnModuleDestroy {
     private readonly whatsappService: WhatsappService,
     @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
   ) {
-    this.contextTtlSeconds = this.intFromConfig('INBOUND_CONTEXT_TTL_SECONDS', 86400);
+    this.contextTtlSeconds = this.intFromConfig(
+      'INBOUND_CONTEXT_TTL_SECONDS',
+      86400,
+    );
 
     // Construye la cadena de responsabilidad una sola vez en el constructor.
     const sanitize = new SanitizeWebhookHandler(
@@ -95,7 +98,10 @@ export class InboundService implements OnModuleDestroy {
     );
 
     // Encadena los handlers con fluent API: setNext retorna el handler recibido.
-    sanitize.setNext(idempotency).setNext(persistCtx).setNext(this.debounceHandler);
+    sanitize
+      .setNext(idempotency)
+      .setNext(persistCtx)
+      .setNext(this.debounceHandler);
     this.processingChain = sanitize;
   }
 
@@ -296,9 +302,7 @@ export class InboundService implements OnModuleDestroy {
         }
 
         if (Array.isArray(nestedMessage)) {
-          return nestedMessage
-            .map((item) => String(item))
-            .join(', ');
+          return nestedMessage.map((item) => String(item)).join(', ');
         }
       }
 

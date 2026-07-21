@@ -11,12 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -62,7 +57,10 @@ export class ReclamosController {
   @ApiOperation({ summary: 'Obtiene un reclamo por id' })
   @ApiParam({ name: 'id', description: 'UUID v4 del reclamo' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reclamo encontrado' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Reclamo no encontrado' })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Reclamo no encontrado',
+  })
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.reclamosService.findOne(id);
   }
@@ -74,7 +72,10 @@ export class ReclamosController {
   @ApiOperation({ summary: 'Actualiza un reclamo existente por id' })
   @ApiParam({ name: 'id', description: 'UUID v4 del reclamo' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reclamo actualizado' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Reclamo no encontrado' })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Reclamo no encontrado',
+  })
   update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() data: UpdateReclamoDto,
@@ -89,7 +90,10 @@ export class ReclamosController {
   @ApiOperation({ summary: 'Elimina un reclamo por id' })
   @ApiParam({ name: 'id', description: 'UUID v4 del reclamo' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reclamo eliminado' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Reclamo no encontrado' })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Reclamo no encontrado',
+  })
   remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.reclamosService.remove(id);
   }

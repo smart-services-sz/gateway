@@ -6,7 +6,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { RequestContextData } from '../common/decorators/request-context.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -45,10 +44,7 @@ export class AuthService {
     );
   }
 
-  async refresh(
-    refreshToken: string,
-    context: RequestContextData,
-  ) {
+  async refresh(refreshToken: string, context: RequestContextData) {
     try {
       return await firstValueFrom(
         this.authClient.send('auth.refresh', {
@@ -61,10 +57,7 @@ export class AuthService {
     }
   }
 
-  async logout(
-    refreshToken: string,
-    context: RequestContextData,
-  ) {
+  async logout(refreshToken: string, context: RequestContextData) {
     try {
       return await firstValueFrom(
         this.authClient.send('auth.logout', {
@@ -81,10 +74,7 @@ export class AuthService {
   /* USERS                         */
   /* ============================= */
 
-  async getAllUsers(
-    pagination: PaginationDto,
-    context: RequestContextData,
-  ) {
+  async getAllUsers(pagination: PaginationDto, context: RequestContextData) {
     return await firstValueFrom(
       this.authClient
         .send('users.get.all', {
@@ -99,10 +89,7 @@ export class AuthService {
     );
   }
 
-  async getUserById(
-    id: string,
-    context: RequestContextData,
-  ) {
+  async getUserById(id: string, context: RequestContextData) {
     return await firstValueFrom(
       this.authClient
         .send('users.get.id', {
@@ -117,10 +104,7 @@ export class AuthService {
     );
   }
 
-  async toggleStatus(
-    id: string,
-    context: RequestContextData,
-  ) {
+  async toggleStatus(id: string, context: RequestContextData) {
     return await firstValueFrom(
       this.authClient
         .send('users.toggle.status', {
@@ -135,10 +119,7 @@ export class AuthService {
     );
   }
 
-  async createUser(
-    dto: CreateUserDto,
-    context: RequestContextData,
-  ) {
+  async createUser(dto: CreateUserDto, context: RequestContextData) {
     return await firstValueFrom(
       this.authClient
         .send('users.create', {
@@ -172,10 +153,7 @@ export class AuthService {
     );
   }
 
-  async deleteUser(
-    id: string,
-    context: RequestContextData,
-  ) {
+  async deleteUser(id: string, context: RequestContextData) {
     return await firstValueFrom(
       this.authClient
         .send('users.delete', {

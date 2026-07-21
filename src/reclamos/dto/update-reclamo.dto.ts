@@ -81,7 +81,9 @@ export class UpdateReclamoDto {
   })
   prioridad?: 'alta' | 'media' | 'baja';
 
-  @ApiPropertyOptional({ enum: ['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'] })
+  @ApiPropertyOptional({
+    enum: ['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'],
+  })
   @IsOptional()
   @IsIn(['pendiente', 'en_proceso', 'resuelto', 'rechazado', 'cerrado'], {
     message: 'estado no valido',

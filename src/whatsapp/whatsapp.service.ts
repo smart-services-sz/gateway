@@ -69,12 +69,16 @@ export class WhatsappService implements OnModuleInit {
     };
 
     try {
-      const response = await axios.post<WhatsappApiResponse>(url, payload_meta, {
-        headers: {
-          Authorization: `Bearer ${this.metaAccessToken}`,
-          'Content-Type': 'application/json',
+      const response = await axios.post<WhatsappApiResponse>(
+        url,
+        payload_meta,
+        {
+          headers: {
+            Authorization: `Bearer ${this.metaAccessToken}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       const messageId = response.data?.messages?.[0]?.id;
 

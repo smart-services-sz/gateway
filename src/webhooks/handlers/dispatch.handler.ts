@@ -67,17 +67,23 @@ export class DispatchHandler implements WebhookHandler {
     return handler;
   }
 
-  async handle(payload: Record<string, unknown>, context: WebhookContext): Promise<void> {
+  async handle(
+    payload: Record<string, unknown>,
+    context: WebhookContext,
+  ): Promise<void> {
     if (context.stopped) return;
 
     const webhookPayload = payload as MetaWhatsappWebhookPayload;
     const inboundMessages = this.extractInboundMessages(webhookPayload);
 
     if (inboundMessages.length === 0) {
-      this.logger.log('Webhook de Meta WhatsApp recibido sin mensajes procesables');
+      this.logger.log(
+        'Webhook de Meta WhatsApp recibido sin mensajes procesables',
+      );
       context.result = {
         status: 'accepted_ignored',
-        message: 'Webhook recibido sin mensajes de texto entrantes para derivar',
+        message:
+          'Webhook recibido sin mensajes de texto entrantes para derivar',
         data: {
           object: webhookPayload.object ?? null,
           acceptedMessages: 0,
@@ -90,7 +96,9 @@ export class DispatchHandler implements WebhookHandler {
     context.extractedMessages = inboundMessages;
 
     const results = await Promise.all(
-      inboundMessages.map((message) => this.inboundService.receiveMessage(message)),
+      inboundMessages.map((message) =>
+        this.inboundService.receiveMessage(message),
+      ),
     );
 
     context.result = {
@@ -112,7 +120,11 @@ export class DispatchHandler implements WebhookHandler {
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         for (const message of change.value?.messages ?? []) {
-          const normalized = this.mapMetaMessageToInbound(entry, change, message);
+          const normalized = this.mapMetaMessageToInbound(
+            entry,
+            change,
+            message,
+          );
           if (normalized) {
             inboundMessages.push(normalized);
           }
@@ -154,7 +166,10 @@ export class DispatchHandler implements WebhookHandler {
       messageText,
       receivedAt: this.parseMetaTimestamp(message.timestamp),
       responseWindow: {
-        debounceMs: this.intFromConfig('META_WHATSAPP_RESPONSE_DEBOUNCE_MS', 2500),
+        debounceMs: this.intFromConfig(
+          'META_WHATSAPP_RESPONSE_DEBOUNCE_MS',
+          2500,
+        ),
         delayMs: this.intFromConfig('META_WHATSAPP_RESPONSE_DELAY_MS', 300),
         maxAccumulationMs: this.intFromConfig(
           'META_WHATSAPP_RESPONSE_MAX_ACCUMULATION_MS',
