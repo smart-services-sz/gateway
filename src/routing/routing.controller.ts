@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -9,7 +10,9 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -21,6 +24,7 @@ import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
 import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
 import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
+import { JwtUser } from '../common/decorators/current-user.dto';
 
 @ApiTags('Routing')
 @Controller('routing')
@@ -39,8 +43,13 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Simulacion ejecutada correctamente',
   })
-  simulate(@Body() payload: SimulateRoutingDto) {
-    return this.routingService.simulate(payload);
+  simulate(
+    @Body() payload: SimulateRoutingDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.routingService.simulate(
+      this.applyTerritorialScope(payload, request.user),
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -54,8 +63,13 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Plan generado correctamente',
   })
-  generate(@Body() payload: SimulateRoutingDto) {
-    return this.routingService.generate(payload);
+  generate(
+    @Body() payload: SimulateRoutingDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.routingService.generate(
+      this.applyTerritorialScope(payload, request.user),
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -184,8 +198,16 @@ export class RoutingController {
     summary: 'Obtiene la ruta actualmente asignada para un usuario operativo',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Ruta asignada obtenida' })
-  getAssignedRoute(@Body() payload: GetAssignedRouteDto) {
-    return this.routingService.getAssignedRoute(payload);
+  getAssignedRoute(
+    @Body() payload: GetAssignedRouteDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    const isAdmin = request.user.roles.includes('ADMIN');
+    return this.routingService.getAssignedRoute(
+      isAdmin
+        ? payload
+        : { ...payload, userId: request.user.userId, crewId: undefined },
+    );
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
@@ -199,8 +221,15 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Estado de ruta actualizado',
   })
-  updateRouteStatus(@Body() payload: UpdateRouteStatusDto) {
-    return this.routingService.updateRouteStatus(payload);
+  updateRouteStatus(
+    @Body() payload: UpdateRouteStatusDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.routingService.updateRouteStatus({
+      ...payload,
+      actorId: request.user.userId,
+      actorIsAdmin: request.user.roles.includes('ADMIN'),
+    });
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
@@ -215,8 +244,16 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Intervencion registrada',
   })
-  registerIntervention(@Body() payload: RegisterInterventionDto) {
-    return this.routingService.registerIntervention(payload);
+  registerIntervention(
+    @Body() payload: RegisterInterventionDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.routingService.registerIntervention({
+      ...payload,
+      performedBy: request.user.userId,
+      actorId: request.user.userId,
+      actorIsAdmin: request.user.roles.includes('ADMIN'),
+    });
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
@@ -227,7 +264,35 @@ export class RoutingController {
     summary: 'Adjunta evidencia multimedia a una intervencion de ruta',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Evidencia adjuntada' })
-  attachInterventionEvidence(@Body() payload: AttachInterventionEvidenceDto) {
-    return this.routingService.attachInterventionEvidence(payload);
+  attachInterventionEvidence(
+    @Body() payload: AttachInterventionEvidenceDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.routingService.attachInterventionEvidence({
+      ...payload,
+      actorId: request.user.userId,
+      actorIsAdmin: request.user.roles.includes('ADMIN'),
+    });
+  }
+
+  private applyTerritorialScope(
+    payload: SimulateRoutingDto,
+    user: JwtUser,
+  ): SimulateRoutingDto {
+    if (user.roles.includes('ADMIN')) {
+      return payload;
+    }
+
+    if (!user.municipalityId || !user.areaId) {
+      throw new ForbiddenException(
+        'El usuario no tiene municipio y area operativa configurados',
+      );
+    }
+
+    return {
+      ...payload,
+      municipalityId: user.municipalityId,
+      areaId: user.areaId,
+    };
   }
 }

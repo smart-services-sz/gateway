@@ -11,6 +11,9 @@ import { firstValueFrom, timeout } from 'rxjs';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
 import { FindReclamosDto } from './dto/find-reclamos.dto';
 import { UpdateReclamoDto } from './dto/update-reclamo.dto';
+import { ReviewResolutionDto } from './dto/review-resolution.dto';
+import { RequestNewVisitDto } from './dto/request-new-visit.dto';
+import { CloseReclamoDto } from './dto/close-reclamo.dto';
 
 @Injectable()
 export class ReclamosService {
@@ -30,6 +33,26 @@ export class ReclamosService {
 
   findOne(id: string) {
     return this.request('reclamos.find-one', { id });
+  }
+
+  getPublicTracking(codigoSeguimiento: string) {
+    return this.request('reclamos.public-tracking', { codigoSeguimiento });
+  }
+
+  getHistory(id: string) {
+    return this.request('reclamos.history', { id });
+  }
+
+  reviewResolution(payload: ReviewResolutionDto) {
+    return this.request('reclamos.resolution.review', payload);
+  }
+
+  requestNewVisit(payload: RequestNewVisitDto) {
+    return this.request('reclamos.new-visit.request', payload);
+  }
+
+  close(payload: CloseReclamoDto) {
+    return this.request('reclamos.close', payload);
   }
 
   update(id: string, data: UpdateReclamoDto) {
@@ -139,7 +162,7 @@ export class ReclamosService {
     return String(error);
   }
 
-  private isRecord(value: unknown): value is Record<string, any> {
+  private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
   }
 }

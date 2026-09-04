@@ -8,6 +8,8 @@ export interface JwtUser {
   cargo: string;
   legajo: string;
   area: string;
+  municipalityId?: string;
+  areaId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

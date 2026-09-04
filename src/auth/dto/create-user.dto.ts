@@ -7,6 +7,7 @@ import {
   IsString,
   IsStrongPassword,
   IsUUID,
+  Matches,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -41,4 +42,14 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   area: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:_[a-z0-9]+)*$/)
+  municipalityId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:_[a-z0-9]+)*$/)
+  areaId?: string;
 }

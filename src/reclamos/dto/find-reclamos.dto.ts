@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FindReclamosDto extends PaginationQueryDto {
@@ -71,6 +71,18 @@ export class FindReclamosDto extends PaginationQueryDto {
     message: 'prioridad no valida',
   })
   prioridad?: 'alta' | 'media' | 'baja';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:_[a-z0-9]+)*$/)
+  municipalityId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:_[a-z0-9]+)*$/)
+  areaId?: string;
 
   @ApiPropertyOptional({ enum: [1, -1], default: -1 })
   @IsOptional()

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -31,4 +32,14 @@ export class AttachInterventionEvidenceDto {
   @IsString()
   @MaxLength(1000)
   descripcion?: string;
+
+  @ApiPropertyOptional({ description: 'Actor autenticado de la operacion' })
+  @IsOptional()
+  @IsUUID('4')
+  actorId?: string;
+
+  @ApiPropertyOptional({ description: 'Indica si el actor es ADMIN' })
+  @IsOptional()
+  @IsBoolean()
+  actorIsAdmin?: boolean;
 }

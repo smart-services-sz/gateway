@@ -100,4 +100,16 @@ export class UpdateReclamoDto {
   @IsOptional()
   @IsObject({ message: 'metadata debe ser un objeto' })
   metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  actorId?: string;
+
+  @IsOptional()
+  @IsString()
+  origen?: string;
+
+  @IsOptional()
+  @IsString()
+  referenciaId?: string;
 }

@@ -37,6 +37,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       cargo: payload.cargo,
       legajo: payload.legajo,
       area: payload.area,
+      municipalityId: payload.municipalityId,
+      areaId: payload.areaId,
     };
   }
 }

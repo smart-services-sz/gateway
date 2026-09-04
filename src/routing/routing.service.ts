@@ -182,7 +182,7 @@ export class RoutingService {
     return String(error);
   }
 
-  private isRecord(value: unknown): value is Record<string, any> {
+  private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
   }
 }
