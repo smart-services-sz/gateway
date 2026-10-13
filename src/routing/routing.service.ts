@@ -72,6 +72,10 @@ export class RoutingService {
     return this.request('routing.assigned-route.get', payload);
   }
 
+  getAssignedRoutes(payload: GetAssignedRouteDto) {
+    return this.request('routing.assigned-routes.list', payload);
+  }
+
   updateRouteStatus(payload: UpdateRouteStatusDto) {
     return this.request('routing.route.status.update', payload);
   }

@@ -31,7 +31,7 @@ import { JwtUser } from '../common/decorators/current-user.dto';
 export class RoutingController {
   constructor(private readonly routingService: RoutingService) {}
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Post('simulate')
   @HttpCode(HttpStatus.OK)
@@ -52,7 +52,7 @@ export class RoutingController {
     );
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Post('generate')
   @HttpCode(HttpStatus.OK)
@@ -72,7 +72,7 @@ export class RoutingController {
     );
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Put('rules')
   @HttpCode(HttpStatus.OK)
@@ -85,7 +85,7 @@ export class RoutingController {
     return this.routingService.upsertRules(payload);
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('VIEW_RECLAMOS')
   @Get('rules')
   @HttpCode(HttpStatus.OK)
@@ -97,7 +97,7 @@ export class RoutingController {
     return this.routingService.getRules();
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('VIEW_RECLAMOS')
   @Get('area-plans')
   @HttpCode(HttpStatus.OK)
@@ -112,7 +112,7 @@ export class RoutingController {
     return this.routingService.listAreaPlans();
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('VIEW_RECLAMOS')
   @Get('plans')
   @HttpCode(HttpStatus.OK)
@@ -127,7 +127,7 @@ export class RoutingController {
     return this.routingService.listPlans();
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Post('area-plans')
   @HttpCode(HttpStatus.OK)
@@ -139,7 +139,7 @@ export class RoutingController {
     return this.routingService.saveAreaPlan(payload);
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Delete('area-plans/:id')
   @HttpCode(HttpStatus.OK)
@@ -154,7 +154,7 @@ export class RoutingController {
     return this.routingService.deleteAreaPlan(id);
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('VIEW_RECLAMOS')
   @Get('plans/:id')
   @HttpCode(HttpStatus.OK)
@@ -166,7 +166,7 @@ export class RoutingController {
     return this.routingService.getPlan(id);
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Post('plans/:id/confirm')
   @HttpCode(HttpStatus.OK)
@@ -178,7 +178,7 @@ export class RoutingController {
     return this.routingService.confirmPlan(id);
   }
 
-  @Roles('ADMIN', 'AGENT')
+  @Roles('ADMIN')
   @Permissions('MANAGE_RECLAMOS')
   @Delete('plans/:id')
   @HttpCode(HttpStatus.OK)
@@ -191,7 +191,14 @@ export class RoutingController {
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
-  @Permissions('VIEW_RECLAMOS')
+  @Get('assigned-routes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Obtiene las rutas confirmadas del usuario autenticado' })
+  getAssignedRoutes(@Req() request: Request & { user: JwtUser }) {
+    return this.routingService.getAssignedRoutes({ userId: request.user.userId });
+  }
+
+  @Roles('ADMIN', 'AGENT', 'OFFICIAL')
   @Post('assigned-route')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -211,7 +218,6 @@ export class RoutingController {
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
-  @Permissions('MANAGE_RECLAMOS')
   @Put('routes/status')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -233,7 +239,6 @@ export class RoutingController {
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
-  @Permissions('MANAGE_RECLAMOS')
   @Post('interventions')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -257,7 +262,6 @@ export class RoutingController {
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
-  @Permissions('MANAGE_RECLAMOS')
   @Post('interventions/evidence')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
