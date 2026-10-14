@@ -48,6 +48,10 @@ type MetaMessage = {
   text?: {
     body?: string;
   };
+  button?: {
+    text?: string;
+    payload?: string;
+  };
 };
 
 // Handler 4 de la cadena (terminal).
@@ -140,14 +144,17 @@ export class DispatchHandler implements WebhookHandler {
     change: MetaChange,
     message: MetaMessage,
   ): CreateInboundMessageDto | null {
-    const messageText = message.text?.body?.trim();
+    const messageText =
+      message.type === 'button'
+        ? this.mapQuickReplyPayload(message.button?.payload)
+        : message.text?.body?.trim();
     const from = message.from?.trim();
 
     if (!messageText || !from) {
       return null;
     }
 
-    if (message.type && message.type !== 'text') {
+    if (message.type && message.type !== 'text' && message.type !== 'button') {
       return null;
     }
 
@@ -189,6 +196,20 @@ export class DispatchHandler implements WebhookHandler {
         rawMessageType: message.type,
       },
     };
+  }
+
+  private mapQuickReplyPayload(payload?: string): string | undefined {
+    const match = payload?.match(
+      /^smartservice\|(REC-[A-Z0-9]+)\|(confirm|disagree|reopen)$/i,
+    );
+    if (!match) return undefined;
+
+    const commands: Record<string, string> = {
+      confirm: 'CONFORME',
+      disagree: 'DISCONFORME',
+      reopen: 'REABRIR',
+    };
+    return `${match[1].toUpperCase()} ${commands[match[2].toLowerCase()]}`;
   }
 
   private parseMetaTimestamp(timestamp?: string): string | undefined {
