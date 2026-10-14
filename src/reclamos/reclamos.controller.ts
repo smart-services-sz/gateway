@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -11,8 +12,11 @@ import {
   Post,
   Query,
   Req,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -24,7 +28,12 @@ import { UpdateReclamoDto } from './dto/update-reclamo.dto';
 import { ReviewResolutionDto } from './dto/review-resolution.dto';
 import { RequestNewVisitDto } from './dto/request-new-visit.dto';
 import { CloseReclamoDto } from './dto/close-reclamo.dto';
+import { PublicTrackingDto } from './dto/public-tracking.dto';
+import { PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
+import type { EvidenceUploadFile } from './evidence-storage.service';
 import { JwtUser } from '../common/decorators/current-user.dto';
+
+type ReclamoTerritorialScope = Pick<JwtUser, 'municipalityId' | 'areaId'>;
 
 @ApiTags('Reclamos')
 @Controller('reclamos')
@@ -44,11 +53,42 @@ export class ReclamosController {
   }
 
   @Public()
-  @Get('seguimiento/:codigo')
+  @Post('public')
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FilesInterceptor('evidencias', 3, {
+      limits: { files: 3, fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Registra un reclamo ciudadano con geolocalizacion validada',
+  })
+  createPublic(
+    @Body() payload: PublicClaimSubmissionDto,
+    @Req() request: Request,
+    @UploadedFiles() evidencias?: EvidenceUploadFile[],
+  ) {
+    return this.reclamosService.createPublic(
+      payload,
+      request.ip || request.socket.remoteAddress || 'unknown',
+      evidencias ?? [],
+    );
+  }
+
+  @Public()
+  @Post('seguimiento')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Consulta publica y sanitizada por codigo' })
-  getPublicTracking(@Param('codigo') codigo: string) {
-    return this.reclamosService.getPublicTracking(codigo);
+  @ApiOperation({
+    summary: 'Consulta publica de estado validando codigo y dato de contacto',
+  })
+  getPublicTracking(
+    @Body() payload: PublicTrackingDto,
+    @Req() request: Request,
+  ) {
+    return this.reclamosService.getPublicTracking(
+      payload,
+      request.ip || request.socket.remoteAddress || 'unknown',
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -60,8 +100,13 @@ export class ReclamosController {
     status: HttpStatus.OK,
     description: 'Listado paginado de reclamos',
   })
-  findAll(@Query() query: FindReclamosDto) {
-    return this.reclamosService.findAll(query);
+  findAll(
+    @Query() query: FindReclamosDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.reclamosService.findAll(
+      this.applyTerritorialScope(query, request.user),
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -70,8 +115,14 @@ export class ReclamosController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtiene el historial integral de un reclamo' })
   @ApiParam({ name: 'id', description: 'UUID v4 del reclamo' })
-  getHistory(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.reclamosService.getHistory(id);
+  getHistory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.reclamosService.getHistory(
+      id,
+      this.getTerritorialScope(request.user),
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -86,7 +137,7 @@ export class ReclamosController {
       ...data,
       reclamoId: id,
       actorId: request.user.userId,
-    });
+    }, this.getTerritorialScope(request.user));
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -101,7 +152,7 @@ export class ReclamosController {
       ...data,
       reclamoId: id,
       actorId: request.user.userId,
-    });
+    }, this.getTerritorialScope(request.user));
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -116,7 +167,7 @@ export class ReclamosController {
       ...data,
       reclamoId: id,
       actorId: request.user.userId,
-    });
+    }, this.getTerritorialScope(request.user));
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -130,8 +181,14 @@ export class ReclamosController {
     status: HttpStatus.NOT_FOUND,
     description: 'Reclamo no encontrado',
   })
-  findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.reclamosService.findOne(id);
+  findOne(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.reclamosService.findOne(
+      id,
+      this.getTerritorialScope(request.user),
+    );
   }
 
   @Roles('ADMIN', 'AGENT')
@@ -148,8 +205,13 @@ export class ReclamosController {
   update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() data: UpdateReclamoDto,
+    @Req() request: Request & { user: JwtUser },
   ) {
-    return this.reclamosService.update(id, data);
+    return this.reclamosService.update(
+      id,
+      data,
+      this.getTerritorialScope(request.user),
+    );
   }
 
   @Roles('ADMIN')
@@ -163,7 +225,43 @@ export class ReclamosController {
     status: HttpStatus.NOT_FOUND,
     description: 'Reclamo no encontrado',
   })
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.reclamosService.remove(id);
+  remove(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.reclamosService.remove(
+      id,
+      this.getTerritorialScope(request.user),
+    );
+  }
+
+  private applyTerritorialScope<T extends ReclamoTerritorialScope>(
+    query: T,
+    user: JwtUser,
+  ): T {
+    return { ...query, ...this.getTerritorialScope(user) };
+  }
+
+  private getTerritorialScope(user: JwtUser): ReclamoTerritorialScope {
+    if (user.roles.includes('ADMIN') && !user.municipalityId) {
+      return {};
+    }
+
+    if (!user.municipalityId) {
+      throw new ForbiddenException(
+        'El usuario no tiene un municipio configurado',
+      );
+    }
+
+    if (user.roles.includes('AGENT') && !user.areaId) {
+      throw new ForbiddenException(
+        'El usuario no tiene un area operativa configurada',
+      );
+    }
+
+    return {
+      municipalityId: user.municipalityId,
+      ...(user.areaId ? { areaId: user.areaId } : {}),
+    };
   }
 }

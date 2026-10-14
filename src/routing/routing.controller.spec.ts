@@ -9,11 +9,15 @@ describe('RoutingController territorial scope', () => {
   const generateMock = jest.fn().mockResolvedValue({ status: 'ok' });
   const assignedRouteMock = jest.fn().mockResolvedValue({ status: 'ok' });
   const assignedRoutesMock = jest.fn().mockResolvedValue({ status: 'ok', data: [] });
+  const attachInterventionEvidenceMock = jest
+    .fn()
+    .mockResolvedValue({ status: 'ok' });
   const service = {
     simulate: simulateMock,
     generate: generateMock,
     getAssignedRoute: assignedRouteMock,
     getAssignedRoutes: assignedRoutesMock,
+    attachInterventionEvidence: attachInterventionEvidenceMock,
   } as unknown as RoutingService;
   const controller = new RoutingController(service);
 
@@ -106,5 +110,36 @@ describe('RoutingController territorial scope', () => {
       userId: 'agent-1',
       crewId: undefined,
     });
+  });
+
+  it('requires an evidence file and forwards the authenticated actor context', async () => {
+    const file = {
+      originalname: 'after.jpg',
+      buffer: Buffer.from('image'),
+    } as Express.Multer.File;
+    const payload = { interventionId: '11111111-1111-4111-8111-111111111111' };
+    const req = {
+      user: {
+        userId: 'agent-1',
+        roles: ['AGENT'],
+        municipalityId: 'funes',
+      },
+    };
+
+    await controller.attachInterventionEvidence(
+      payload as never,
+      req as never,
+      [file],
+    );
+
+    expect(attachInterventionEvidenceMock).toHaveBeenCalledWith(
+      payload,
+      file,
+      {
+        actorId: 'agent-1',
+        actorIsAdmin: false,
+        municipalityId: 'funes',
+      },
+    );
   });
 });

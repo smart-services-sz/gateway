@@ -1,19 +1,34 @@
 import {
   BadGatewayException,
+  BadRequestException,
   HttpException,
   HttpStatus,
   Inject,
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
+import { RedisService } from '../redis/redis.service';
 import { CreateReclamoDto } from './dto/create-reclamo.dto';
 import { FindReclamosDto } from './dto/find-reclamos.dto';
+import { PublicTrackingDto } from './dto/public-tracking.dto';
 import { UpdateReclamoDto } from './dto/update-reclamo.dto';
 import { ReviewResolutionDto } from './dto/review-resolution.dto';
 import { RequestNewVisitDto } from './dto/request-new-visit.dto';
 import { CloseReclamoDto } from './dto/close-reclamo.dto';
+import { PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
+import {
+  EvidenceStorageService,
+  EvidenceUploadFile,
+  StoredEvidence,
+} from './evidence-storage.service';
+
+type ReclamoTerritorialScope = {
+  municipalityId?: string;
+  areaId?: string;
+};
 
 @Injectable()
 export class ReclamosService {
@@ -21,46 +36,275 @@ export class ReclamosService {
 
   constructor(
     @Inject('NATS_CLIENT') private readonly natsClient: ClientProxy,
+    private readonly redisService: RedisService,
+    private readonly evidenceStorage: EvidenceStorageService,
   ) {}
 
   create(payload: CreateReclamoDto) {
     return this.request('reclamos.create', payload);
   }
 
-  findAll(query: FindReclamosDto) {
-    return this.request('reclamos.find-all', query);
+  async findAll(query: FindReclamosDto) {
+    const response = await this.request<unknown>('reclamos.find-all', query);
+    if (!this.isRecord(response) || !Array.isArray(response.items)) {
+      return response;
+    }
+    return {
+      ...response,
+      items: response.items.map((item) =>
+        this.isRecord(item) ? this.sanitizeEvidenceMetadata(item) : item,
+      ),
+    };
   }
 
-  findOne(id: string) {
-    return this.request('reclamos.find-one', { id });
+  async findOne(id: string, scope: ReclamoTerritorialScope = {}) {
+    const response = await this.request<unknown>('reclamos.find-one', {
+      id,
+      ...scope,
+    });
+    if (!this.isRecord(response)) return response;
+
+    const metadata = this.isRecord(response.metadata) ? response.metadata : {};
+    const storedEvidence = Array.isArray(metadata.evidencias)
+      ? metadata.evidencias.filter((item): item is StoredEvidence =>
+          this.isStoredEvidence(item),
+        )
+      : [];
+    const evidencias = await Promise.all(
+      storedEvidence.map(async ({ objectKey: _objectKey, ...item }) => ({
+        ...item,
+        url: await this.evidenceStorage.createDownloadUrl({
+          ...item,
+          objectKey: _objectKey,
+        }),
+      })),
+    );
+
+    return {
+      ...this.sanitizeEvidenceMetadata(response),
+      evidencias,
+      evidenciasCount: storedEvidence.length,
+    };
   }
 
-  getPublicTracking(codigoSeguimiento: string) {
-    return this.request('reclamos.public-tracking', { codigoSeguimiento });
+  async createPublic(
+    payload: PublicClaimSubmissionDto,
+    clientIp: string,
+    evidenceFiles: EvidenceUploadFile[] = [],
+  ) {
+    await this.checkIpRateLimit('public-claims', clientIp, 5, 3600);
+
+    const municipalityId = process.env.PUBLIC_MUNICIPALITY_ID?.trim();
+    const municipalityName = process.env.PUBLIC_MUNICIPALITY_NAME?.trim();
+    if (!municipalityId || !municipalityName) {
+      throw new HttpException(
+        'El canal web no esta configurado para un municipio.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(municipalityId)) {
+      throw new HttpException(
+        'La configuracion territorial del canal web no es valida.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const correlationId = randomUUID();
+    const geocoding = await this.request<{
+      status: string;
+      data?: {
+        lat: number;
+        lng: number;
+        formattedAddress?: string;
+        addressComponents?: { locality?: string | null };
+      };
+    }>('geo.geocode-address', {
+      correlationId,
+      address: payload.direccion.trim(),
+      city: municipalityName,
+      country: process.env.PUBLIC_COUNTRY?.trim() || 'Argentina',
+    });
+
+    if (geocoding.status === 'geocode_unavailable') {
+      throw new HttpException(
+        'La geolocalizacion no esta disponible temporalmente.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (geocoding.status !== 'geocode_ok' || !geocoding.data) {
+      throw new BadRequestException(
+        'No pudimos validar la direccion ingresada.',
+      );
+    }
+
+    const locality = this.normalizeLocation(
+      geocoding.data.addressComponents?.locality ?? '',
+    );
+    if (
+      !locality ||
+      locality !== this.normalizeLocation(municipalityName) ||
+      !Number.isFinite(geocoding.data.lat) ||
+      !Number.isFinite(geocoding.data.lng) ||
+      (geocoding.data.lat === 0 && geocoding.data.lng === 0)
+    ) {
+      throw new BadRequestException(
+        'La direccion no pertenece a la localidad habilitada.',
+      );
+    }
+
+    const contacto = payload.contacto.trim();
+    const isEmail = contacto.includes('@');
+    const normalizedContact = isEmail
+      ? contacto.toLowerCase()
+      : contacto.replace(/\D/g, '');
+    const storedEvidence = await this.evidenceStorage.storeEvidence(
+      municipalityId,
+      correlationId,
+      evidenceFiles,
+    );
+    let claim: {
+      trackingCode?: string;
+      codigoSeguimiento?: string;
+      createdAt?: string;
+    };
+    try {
+      claim = await this.request('reclamos.create', {
+        correlationId,
+        contactKey: `web:${isEmail ? 'email' : 'phone'}:${normalizedContact}`,
+        canal: 'web',
+        correo: isEmail ? normalizedContact : undefined,
+        problema: payload.problema.trim(),
+        direccion: geocoding.data.formattedAddress || payload.direccion.trim(),
+        lat: geocoding.data.lat,
+        lng: geocoding.data.lng,
+        categoria: payload.categoria,
+        prioridad: 'media',
+        municipalityId,
+        metadata: {
+          source: 'public-web',
+          geocodingProvider: 'google-geocoding',
+          ...(storedEvidence.length > 0 ? { evidencias: storedEvidence } : {}),
+        },
+      });
+    } catch (error: unknown) {
+      await this.evidenceStorage.deleteEvidence(storedEvidence);
+      throw error;
+    }
+
+    const trackingCode = claim.trackingCode || claim.codigoSeguimiento;
+    if (!trackingCode) {
+      await this.evidenceStorage.deleteEvidence(storedEvidence);
+      throw new BadGatewayException(
+        'El reclamo fue enviado, pero no se recibio su codigo de seguimiento.',
+      );
+    }
+
+    return {
+      status: 'created',
+      trackingCode,
+      createdAt: claim.createdAt,
+      message: 'Reclamo registrado. Guarda tu codigo de seguimiento.',
+    };
   }
 
-  getHistory(id: string) {
-    return this.request('reclamos.history', { id });
+  async getPublicTracking(payload: PublicTrackingDto, clientIp: string) {
+    await this.checkIpRateLimit('public-tracking', clientIp, 10, 900);
+    return this.request('reclamos.public-tracking', payload);
   }
 
-  reviewResolution(payload: ReviewResolutionDto) {
-    return this.request('reclamos.resolution.review', payload);
+  private async checkIpRateLimit(
+    purpose: string,
+    clientIp: string,
+    maxRequests: number,
+    windowSeconds: number,
+  ): Promise<void> {
+    const clientHash = createHash('sha256').update(clientIp).digest('hex');
+    const key = `smartservice:${purpose}:ratelimit:${clientHash}`;
+
+    try {
+      const redis = this.redisService.getClient();
+      const count = await redis.incr(key);
+      if (count === 1) {
+        await redis.expire(key, windowSeconds);
+      }
+      if (count > maxRequests) {
+        throw new HttpException(
+          'Se alcanzo el limite de solicitudes. Intenta nuevamente mas tarde.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('No se pudo validar el limite de seguimiento publico');
+      throw new HttpException(
+        'El servicio no esta disponible temporalmente.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 
-  requestNewVisit(payload: RequestNewVisitDto) {
-    return this.request('reclamos.new-visit.request', payload);
+  private normalizeLocation(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase('es-AR');
   }
 
-  close(payload: CloseReclamoDto) {
-    return this.request('reclamos.close', payload);
+  private sanitizeEvidenceMetadata<T extends Record<string, unknown>>(claim: T) {
+    const metadata = this.isRecord(claim.metadata) ? { ...claim.metadata } : {};
+    const evidenceCount = Array.isArray(metadata.evidencias)
+      ? metadata.evidencias.length
+      : 0;
+    delete metadata.evidencias;
+    return { ...claim, metadata, evidenciasCount: evidenceCount };
   }
 
-  update(id: string, data: UpdateReclamoDto) {
-    return this.request('reclamos.update', { id, data });
+  private isStoredEvidence(value: unknown): value is StoredEvidence {
+    return (
+      this.isRecord(value) &&
+      typeof value.objectKey === 'string' &&
+      typeof value.nombreArchivo === 'string' &&
+      typeof value.contentType === 'string' &&
+      typeof value.size === 'number' &&
+      typeof value.uploadedAt === 'string'
+    );
   }
 
-  remove(id: string) {
-    return this.request('reclamos.remove', { id });
+  getHistory(id: string, scope: ReclamoTerritorialScope = {}) {
+    return this.request('reclamos.history', { id, ...scope });
+  }
+
+  reviewResolution(
+    payload: ReviewResolutionDto,
+    scope: ReclamoTerritorialScope = {},
+  ) {
+    return this.request('reclamos.resolution.review', { ...payload, ...scope });
+  }
+
+  requestNewVisit(
+    payload: RequestNewVisitDto,
+    scope: ReclamoTerritorialScope = {},
+  ) {
+    return this.request('reclamos.new-visit.request', { ...payload, ...scope });
+  }
+
+  close(payload: CloseReclamoDto, scope: ReclamoTerritorialScope = {}) {
+    return this.request('reclamos.close', { ...payload, ...scope });
+  }
+
+  update(
+    id: string,
+    data: UpdateReclamoDto,
+    scope: ReclamoTerritorialScope = {},
+  ) {
+    return this.request('reclamos.update', { id, data, ...scope });
+  }
+
+  remove(id: string, scope: ReclamoTerritorialScope = {}) {
+    return this.request('reclamos.remove', { id, ...scope });
   }
 
   private async request<T = unknown>(

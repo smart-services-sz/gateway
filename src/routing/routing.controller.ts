@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  BadRequestException,
   ForbiddenException,
   Get,
   HttpCode,
@@ -11,8 +12,11 @@ import {
   Post,
   Put,
   Req,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,6 +29,7 @@ import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
 import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
 import { JwtUser } from '../common/decorators/current-user.dto';
+import type { EvidenceUploadFile } from '../reclamos/evidence-storage.service';
 
 @ApiTags('Routing')
 @Controller('routing')
@@ -264,6 +269,11 @@ export class RoutingController {
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
   @Post('interventions/evidence')
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FilesInterceptor('evidencia', 1, {
+      limits: { files: 1, fileSize: 5 * 1024 * 1024 },
+    }),
+  )
   @ApiOperation({
     summary: 'Adjunta evidencia multimedia a una intervencion de ruta',
   })
@@ -271,11 +281,16 @@ export class RoutingController {
   attachInterventionEvidence(
     @Body() payload: AttachInterventionEvidenceDto,
     @Req() request: Request & { user: JwtUser },
+    @UploadedFiles() files?: EvidenceUploadFile[],
   ) {
-    return this.routingService.attachInterventionEvidence({
-      ...payload,
+    const file = files?.[0];
+    if (!file) {
+      throw new BadRequestException('Debe adjuntar un archivo de evidencia.');
+    }
+    return this.routingService.attachInterventionEvidence(payload, file, {
       actorId: request.user.userId,
       actorIsAdmin: request.user.roles.includes('ADMIN'),
+      municipalityId: request.user.municipalityId,
     });
   }
 
