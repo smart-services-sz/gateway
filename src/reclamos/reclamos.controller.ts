@@ -40,16 +40,23 @@ type ReclamoTerritorialScope = Pick<JwtUser, 'municipalityId' | 'areaId'>;
 export class ReclamosController {
   constructor(private readonly reclamosService: ReclamosService) {}
 
-  @Public()
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('MANAGE_RECLAMOS')
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Crea un reclamo y lo persiste via ms-reclamos' })
+  @ApiOperation({ summary: 'Alta administrativa de reclamo con alcance territorial autenticado' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Reclamo creado correctamente',
   })
-  create(@Body() payload: CreateReclamoDto) {
-    return this.reclamosService.create(payload);
+  create(
+    @Body() payload: CreateReclamoDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    return this.reclamosService.create({
+      ...payload,
+      ...this.getTerritorialScope(request.user),
+    });
   }
 
   @Public()
@@ -73,6 +80,12 @@ export class ReclamosController {
       request.ip || request.socket.remoteAddress || 'unknown',
       evidencias ?? [],
     );
+  }
+
+  @Public()
+  @Get('public-config')
+  getPublicConfiguration() {
+    return this.reclamosService.getPublicConfiguration();
   }
 
   @Public()

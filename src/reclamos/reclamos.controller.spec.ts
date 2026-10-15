@@ -2,9 +2,12 @@ import { ForbiddenException } from '@nestjs/common';
 import { JwtUser } from '../common/decorators/current-user.dto';
 import { ReclamosService } from './reclamos.service';
 import { ReclamosController } from './reclamos.controller';
+import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 
 describe('ReclamosController territorial scope', () => {
   const reclamosService = {
+    create: jest.fn(),
+    getPublicConfiguration: jest.fn(),
     createPublic: jest.fn(),
     getPublicTracking: jest.fn(),
     findAll: jest.fn(),
@@ -33,6 +36,30 @@ describe('ReclamosController territorial scope', () => {
   const request = (user: JwtUser) => ({ user }) as never;
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('requires an administrative role for legacy creation rather than exposing a public bypass', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, controller.create)).not.toBe(true);
+    expect(Reflect.getMetadata('roles', controller.create)).toEqual(['ADMIN', 'AGENT']);
+  });
+
+  it('overwrites the administrative creation scope with the authenticated territory', () => {
+    controller.create({ municipalityId: 'municipality-b', areaId: 'area-b' } as never, request(agent));
+    expect(reclamosService.create).toHaveBeenCalledWith({
+      municipalityId: agent.municipalityId, areaId: agent.areaId,
+    });
+  });
+
+  it('rejects administrative creation by an unscoped agent', () => {
+    expect(() => controller.create({} as never, request({ ...agent, municipalityId: undefined })))
+      .toThrow(ForbiddenException);
+    expect(reclamosService.create).not.toHaveBeenCalled();
+  });
+
+  it('exposes the safe municipal configuration publicly', () => {
+    controller.getPublicConfiguration();
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, controller.getPublicConfiguration)).toBe(true);
+    expect(reclamosService.getPublicConfiguration).toHaveBeenCalledTimes(1);
+  });
 
   it('overwrites list filters with the authenticated agent scope', () => {
     controller.findAll(

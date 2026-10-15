@@ -58,6 +58,32 @@ describe('RoutingService intervention evidence', () => {
     expect(natsClient.send).toHaveBeenCalledTimes(1);
   });
 
+  it('adds the trusted municipal scope to every administrative NATS request', async () => {
+    natsClient.send.mockReturnValue(of({ status: 'ok', data: [] }));
+    const municipalityId = 'funes';
+    await service.getRules(municipalityId);
+    await service.listPlans(municipalityId);
+    await service.listAreaPlans(municipalityId);
+    await service.getPlan('plan-1', municipalityId);
+    await service.confirmPlan('plan-1', municipalityId);
+    await service.deletePlan('plan-1', municipalityId);
+    await service.deleteAreaPlan('area-1', municipalityId);
+    await service.upsertRules({ categoryRules: [], crews: [], municipalityId: 'spoofed' } as never, municipalityId);
+    await service.saveAreaPlan({ municipalityId: 'spoofed' } as never, municipalityId);
+    for (const [, payload] of natsClient.send.mock.calls) {
+      expect(payload).toEqual(expect.objectContaining({ municipalityId }));
+    }
+    expect(natsClient.send).toHaveBeenCalledTimes(9);
+  });
+
+  it('rejects an admin without a municipality before uploading evidence', async () => {
+    await expect(service.attachInterventionEvidence({ interventionId }, file, {
+      actorId: 'admin-1', actorIsAdmin: true,
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(storage.storeEvidence).not.toHaveBeenCalled();
+    expect(natsClient.send).not.toHaveBeenCalled();
+  });
+
   it('stores and attaches a private object key after verifying route assignment', async () => {
     natsClient.send
       .mockReturnValueOnce(
@@ -96,6 +122,7 @@ describe('RoutingService intervention evidence', () => {
       interventionId,
       [file],
     );
+    expect(natsClient.send).toHaveBeenNthCalledWith(1, 'routing.assigned-routes.list', { userId: 'agent-1', municipalityId: 'funes' });
     expect(natsClient.send).toHaveBeenNthCalledWith(
       2,
       'routing.intervention.evidence.attach',
@@ -105,6 +132,7 @@ describe('RoutingService intervention evidence', () => {
         tipo: 'documento',
         actorId: 'agent-1',
         actorIsAdmin: false,
+        municipalityId: 'funes',
       }),
     );
     expect(storage.createDownloadUrl).toHaveBeenCalledWith(
@@ -159,7 +187,7 @@ describe('RoutingService intervention evidence', () => {
       }),
     );
 
-    await expect(service.getAssignedRoutes({ userId: 'agent-1' })).resolves.toMatchObject({
+    await expect(service.getAssignedRoutes({ userId: 'agent-1', municipalityId: 'funes' })).resolves.toMatchObject({
       data: [
         {
           stops: [

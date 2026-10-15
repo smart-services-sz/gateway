@@ -18,7 +18,8 @@ import { UpdateReclamoDto } from './dto/update-reclamo.dto';
 import { ReviewResolutionDto } from './dto/review-resolution.dto';
 import { RequestNewVisitDto } from './dto/request-new-visit.dto';
 import { CloseReclamoDto } from './dto/close-reclamo.dto';
-import { PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
+import { PUBLIC_CLAIM_CATEGORIES, PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
+import type { MunicipalityConfigurationDto } from '../municipal-config/dto/municipality-configuration.dto';
 import {
   EvidenceStorageService,
   EvidenceUploadFile,
@@ -94,19 +95,15 @@ export class ReclamosService {
   ) {
     await this.checkIpRateLimit('public-claims', clientIp, 5, 3600);
 
-    const municipalityId = process.env.PUBLIC_MUNICIPALITY_ID?.trim();
-    const municipalityName = process.env.PUBLIC_MUNICIPALITY_NAME?.trim();
-    if (!municipalityId || !municipalityName) {
-      throw new HttpException(
-        'El canal web no esta configurado para un municipio.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(municipalityId)) {
-      throw new HttpException(
-        'La configuracion territorial del canal web no es valida.',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
+    const municipality = await this.resolvePublicMunicipality();
+    const municipalityId = municipality.id;
+    const municipalityName = municipality.defaultCity || municipality.name;
+    const category = municipality.categories?.find(
+      (item) => item.code === payload.categoria && item.isActive === true &&
+        PUBLIC_CLAIM_CATEGORIES.includes(item.code),
+    );
+    if (!category) {
+      throw new BadRequestException('La categoria no esta habilitada para este municipio.');
     }
 
     const correlationId = randomUUID();
@@ -116,13 +113,17 @@ export class ReclamosService {
         lat: number;
         lng: number;
         formattedAddress?: string;
-        addressComponents?: { locality?: string | null };
+        addressComponents?: {
+          locality?: string | null;
+          country?: string | null;
+          adminArea?: string | null;
+        };
       };
     }>('geo.geocode-address', {
       correlationId,
       address: payload.direccion.trim(),
       city: municipalityName,
-      country: process.env.PUBLIC_COUNTRY?.trim() || 'Argentina',
+      country: municipality.country,
     });
 
     if (geocoding.status === 'geocode_unavailable') {
@@ -140,11 +141,23 @@ export class ReclamosService {
     const locality = this.normalizeLocation(
       geocoding.data.addressComponents?.locality ?? '',
     );
+    const country = this.normalizeLocation(geocoding.data.addressComponents?.country ?? '');
+    const adminArea = this.normalizeLocation(geocoding.data.addressComponents?.adminArea ?? '');
+    const allowedCountries = municipality.allowedCountries?.length
+      ? municipality.allowedCountries
+      : [municipality.country];
     if (
       !locality ||
       locality !== this.normalizeLocation(municipalityName) ||
+      !allowedCountries.some((item) => this.normalizeLocation(item) === country) ||
+      (municipality.allowedAdminAreas?.length &&
+        !municipality.allowedAdminAreas.some((item) =>
+          [locality, adminArea].includes(this.normalizeLocation(item)),
+        )) ||
       !Number.isFinite(geocoding.data.lat) ||
       !Number.isFinite(geocoding.data.lng) ||
+      Math.abs(geocoding.data.lat) > 90 ||
+      Math.abs(geocoding.data.lng) > 180 ||
       (geocoding.data.lat === 0 && geocoding.data.lng === 0)
     ) {
       throw new BadRequestException(
@@ -178,7 +191,7 @@ export class ReclamosService {
         lat: geocoding.data.lat,
         lng: geocoding.data.lng,
         categoria: payload.categoria,
-        prioridad: 'media',
+        prioridad: category.defaultPriority || 'media',
         municipalityId,
         metadata: {
           source: 'public-web',
@@ -210,6 +223,41 @@ export class ReclamosService {
   async getPublicTracking(payload: PublicTrackingDto, clientIp: string) {
     await this.checkIpRateLimit('public-tracking', clientIp, 10, 900);
     return this.request('reclamos.public-tracking', payload);
+  }
+
+  async getPublicConfiguration() {
+    const municipality = await this.resolvePublicMunicipality();
+    return {
+      municipality: {
+        id: municipality.id,
+        name: municipality.name,
+        city: municipality.defaultCity || municipality.name,
+      },
+      categories: (municipality.categories ?? [])
+        .filter((item) => item.isActive === true && PUBLIC_CLAIM_CATEGORIES.includes(item.code))
+        .map((item) => ({ code: item.code, name: item.name })),
+    };
+  }
+
+  private async resolvePublicMunicipality(): Promise<MunicipalityConfigurationDto> {
+    const id = process.env.PUBLIC_MUNICIPALITY_ID?.trim();
+    if (id && /^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(id)) {
+      try {
+        const municipality = await this.request<MunicipalityConfigurationDto>(
+          'municipalities.config.get',
+          { data: { id }, context: { userId: 'public-web', ip: '' } },
+        );
+        if (municipality?.id === id && municipality.isActive === true) {
+          return municipality;
+        }
+      } catch {
+        this.logger.warn('No se pudo obtener la configuracion municipal del canal web');
+      }
+    }
+    throw new HttpException(
+      'El municipio del canal web no esta disponible.',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
   }
 
   private async checkIpRateLimit(

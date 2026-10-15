@@ -18,6 +18,10 @@ describe('RoutingController territorial scope', () => {
     getAssignedRoute: assignedRouteMock,
     getAssignedRoutes: assignedRoutesMock,
     attachInterventionEvidence: attachInterventionEvidenceMock,
+    getRules: jest.fn(), listPlans: jest.fn(), listAreaPlans: jest.fn(),
+    upsertRules: jest.fn(), saveAreaPlan: jest.fn(), deleteAreaPlan: jest.fn(),
+    getPlan: jest.fn(), confirmPlan: jest.fn(), deletePlan: jest.fn(),
+    updateRouteStatus: jest.fn(), registerIntervention: jest.fn(),
   } as unknown as RoutingService;
   const controller = new RoutingController(service);
 
@@ -25,9 +29,48 @@ describe('RoutingController territorial scope', () => {
     jest.clearAllMocks();
   });
 
+  it('never lets an admin replace the municipality from the authenticated token', async () => {
+    await controller.generate({ municipalityId: 'municipio_b' }, {
+      user: { userId: 'admin-1', roles: ['ADMIN'], municipalityId: 'municipio_a' },
+    } as never);
+    expect(generateMock).toHaveBeenCalledWith({ municipalityId: 'municipio_a' });
+  });
+
+  it('carries authenticated scope to all administrative reads and mutations', () => {
+    const req = { user: { userId: 'admin-1', roles: ['ADMIN'], municipalityId: 'municipio_a' } } as never;
+    controller.getRules(req); controller.listPlans(req); controller.listAreaPlans(req);
+    controller.getPlan('plan-a', req); controller.confirmPlan('plan-a', req); controller.deletePlan('plan-a', req);
+    controller.deleteAreaPlan('area-a', req);
+    controller.upsertRules({ categoryRules: [], crews: [] }, req);
+    controller.saveAreaPlan({} as never, req);
+    for (const method of [service.getRules, service.listPlans, service.listAreaPlans]) expect(method).toHaveBeenCalledWith('municipio_a');
+    for (const method of [service.getPlan, service.confirmPlan, service.deletePlan]) expect(method).toHaveBeenCalledWith('plan-a', 'municipio_a');
+    expect(service.deleteAreaPlan).toHaveBeenCalledWith('area-a', 'municipio_a');
+    expect(service.upsertRules).toHaveBeenCalledWith({ categoryRules: [], crews: [] }, 'municipio_a');
+    expect(service.saveAreaPlan).toHaveBeenCalledWith({}, 'municipio_a');
+  });
+
+  it('rejects unscoped admins rather than using a global fallback', () => {
+    const req = { user: { userId: 'admin-1', roles: ['ADMIN'] } } as never;
+    for (const operation of [
+      () => controller.generate({}, req), () => controller.getRules(req),
+      () => controller.listPlans(req), () => controller.getPlan('plan-a', req),
+      () => controller.upsertRules({ categoryRules: [], crews: [] }, req),
+      () => controller.getAssignedRoutes(req),
+    ]) expect(operation).toThrow(ForbiddenException);
+  });
+
+  it('overwrites client actor and municipality fields for operational writes', () => {
+    const req = { user: { userId: 'agent-1', roles: ['AGENT'], municipalityId: 'municipio_a' } } as never;
+    const spoofed = { municipalityId: 'municipio_b', actorId: 'other', actorIsAdmin: true };
+    controller.updateRouteStatus(spoofed as never, req);
+    controller.registerIntervention(spoofed as never, req);
+    for (const method of [service.updateRouteStatus, service.registerIntervention]) expect(method).toHaveBeenCalledWith(expect.objectContaining({ municipalityId: 'municipio_a', actorId: 'agent-1', actorIsAdmin: false }));
+  });
+
   it('lists only the authenticated operator routes', async () => {
-    await controller.getAssignedRoutes({ user: { userId: 'agent-1', roles: ['AGENT'], permissions: [] } } as never);
-    expect(assignedRoutesMock).toHaveBeenCalledWith({ userId: 'agent-1' });
+    await controller.getAssignedRoutes({ user: { userId: 'agent-1', roles: ['AGENT'], permissions: [], municipalityId: 'funes' } } as never);
+    expect(assignedRoutesMock).toHaveBeenCalledWith({ userId: 'agent-1', municipalityId: 'funes' });
   });
 
   it('reserves planning and route administration for ADMIN', () => {
@@ -46,8 +89,8 @@ describe('RoutingController territorial scope', () => {
   it('overwrites client territorial filters with the authenticated operator scope', async () => {
     await controller.simulate(
       {
-        municipalityId: 'client-municipality',
-        areaId: 'client-area',
+        municipalityId: 'client_municipality',
+        areaId: 'client_area',
       },
       {
         user: {
@@ -59,15 +102,15 @@ describe('RoutingController territorial scope', () => {
           cargo: 'Agent',
           legajo: '1',
           area: 'Centro',
-          municipalityId: 'token-municipality',
-          areaId: 'token-area',
+          municipalityId: 'token_municipality',
+          areaId: 'token_area',
         },
       } as never,
     );
 
     expect(simulateMock).toHaveBeenCalledWith({
-      municipalityId: 'token-municipality',
-      areaId: 'token-area',
+      municipalityId: 'token_municipality',
+      areaId: 'token_area',
     });
   });
 
@@ -98,6 +141,7 @@ describe('RoutingController territorial scope', () => {
           name: 'Agent',
           email: 'agent@test.local',
           roles: ['OFFICIAL'],
+          municipalityId: 'funes',
           permissions: ['VIEW_RECLAMOS'],
           cargo: 'Official',
           legajo: '1',
@@ -109,6 +153,7 @@ describe('RoutingController territorial scope', () => {
     expect(assignedRouteMock).toHaveBeenCalledWith({
       userId: 'agent-1',
       crewId: undefined,
+      municipalityId: 'funes',
     });
   });
 

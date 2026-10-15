@@ -86,8 +86,8 @@ export class RoutingController {
       'Crea o actualiza reglas de categoria, cuadrilla y zona para ruteo',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reglas actualizadas' })
-  upsertRules(@Body() payload: UpsertRoutingRulesDto) {
-    return this.routingService.upsertRules(payload);
+  upsertRules(@Body() payload: UpsertRoutingRulesDto, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.upsertRules(payload, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -98,8 +98,8 @@ export class RoutingController {
     summary: 'Obtiene reglas de ruteo vigentes desde ms-routing',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reglas obtenidas' })
-  getRules() {
-    return this.routingService.getRules();
+  getRules(@Req() request: Request & { user: JwtUser }) {
+    return this.routingService.getRules(this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -113,8 +113,8 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Planes por area obtenidos',
   })
-  listAreaPlans() {
-    return this.routingService.listAreaPlans();
+  listAreaPlans(@Req() request: Request & { user: JwtUser }) {
+    return this.routingService.listAreaPlans(this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -128,8 +128,8 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Historial de planes obtenido',
   })
-  listPlans() {
-    return this.routingService.listPlans();
+  listPlans(@Req() request: Request & { user: JwtUser }) {
+    return this.routingService.listPlans(this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -140,8 +140,8 @@ export class RoutingController {
     summary: 'Crea o actualiza un plan por area',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Plan por area guardado' })
-  saveAreaPlan(@Body() payload: SaveRoutingAreaPlanDto) {
-    return this.routingService.saveAreaPlan(payload);
+  saveAreaPlan(@Body() payload: SaveRoutingAreaPlanDto, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.saveAreaPlan(payload, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -155,8 +155,8 @@ export class RoutingController {
     status: HttpStatus.OK,
     description: 'Plan por area eliminado',
   })
-  deleteAreaPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.routingService.deleteAreaPlan(id);
+  deleteAreaPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.deleteAreaPlan(id, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -167,8 +167,8 @@ export class RoutingController {
     summary: 'Obtiene un plan de rutas persistido por id',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Plan obtenido' })
-  getPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.routingService.getPlan(id);
+  getPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.getPlan(id, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -179,8 +179,8 @@ export class RoutingController {
     summary: 'Confirma un plan de rutas persistido',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Plan confirmado' })
-  confirmPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.routingService.confirmPlan(id);
+  confirmPlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.confirmPlan(id, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN')
@@ -191,8 +191,8 @@ export class RoutingController {
     summary: 'Elimina un plan de rutas persistido',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Plan eliminado' })
-  deletePlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.routingService.deletePlan(id);
+  deletePlan(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() request: Request & { user: JwtUser }) {
+    return this.routingService.deletePlan(id, this.municipalityFor(request.user));
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
@@ -200,7 +200,7 @@ export class RoutingController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtiene las rutas confirmadas del usuario autenticado' })
   getAssignedRoutes(@Req() request: Request & { user: JwtUser }) {
-    return this.routingService.getAssignedRoutes({ userId: request.user.userId });
+    return this.routingService.getAssignedRoutes({ userId: request.user.userId, municipalityId: this.municipalityFor(request.user) });
   }
 
   @Roles('ADMIN', 'AGENT', 'OFFICIAL')
@@ -216,9 +216,10 @@ export class RoutingController {
   ) {
     const isAdmin = request.user.roles.includes('ADMIN');
     return this.routingService.getAssignedRoute(
-      isAdmin
+      { ...(isAdmin
         ? payload
-        : { ...payload, userId: request.user.userId, crewId: undefined },
+        : { ...payload, userId: request.user.userId, crewId: undefined }),
+        municipalityId: this.municipalityFor(request.user) },
     );
   }
 
@@ -238,6 +239,7 @@ export class RoutingController {
   ) {
     return this.routingService.updateRouteStatus({
       ...payload,
+      municipalityId: this.municipalityFor(request.user),
       actorId: request.user.userId,
       actorIsAdmin: request.user.roles.includes('ADMIN'),
     });
@@ -260,6 +262,7 @@ export class RoutingController {
   ) {
     return this.routingService.registerIntervention({
       ...payload,
+      municipalityId: this.municipalityFor(request.user),
       performedBy: request.user.userId,
       actorId: request.user.userId,
       actorIsAdmin: request.user.roles.includes('ADMIN'),
@@ -290,19 +293,24 @@ export class RoutingController {
     return this.routingService.attachInterventionEvidence(payload, file, {
       actorId: request.user.userId,
       actorIsAdmin: request.user.roles.includes('ADMIN'),
-      municipalityId: request.user.municipalityId,
+      municipalityId: this.municipalityFor(request.user),
     });
+  }
+
+  private municipalityFor(user: JwtUser): string {
+    const id = user.municipalityId?.trim();
+    if (!id || !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(id)) {
+      throw new ForbiddenException('El usuario debe tener un municipio configurado para operar rutas');
+    }
+    return id;
   }
 
   private applyTerritorialScope(
     payload: SimulateRoutingDto,
     user: JwtUser,
   ): SimulateRoutingDto {
-    if (user.roles.includes('ADMIN')) {
-      return payload;
-    }
-
-    if (!user.municipalityId || !user.areaId) {
+    const municipalityId = this.municipalityFor(user);
+    if (!user.roles.includes('ADMIN') && !user.areaId) {
       throw new ForbiddenException(
         'El usuario no tiene municipio y area operativa configurados',
       );
@@ -310,8 +318,8 @@ export class RoutingController {
 
     return {
       ...payload,
-      municipalityId: user.municipalityId,
-      areaId: user.areaId,
+      municipalityId,
+      ...(!user.roles.includes('ADMIN') ? { areaId: user.areaId } : {}),
     };
   }
 }

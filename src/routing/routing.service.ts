@@ -39,59 +39,59 @@ export class RoutingService {
     return this.request('routing.generate', payload);
   }
 
-  upsertRules(payload: UpsertRoutingRulesDto) {
-    return this.request('routing.rules.upsert', payload);
+  upsertRules(payload: UpsertRoutingRulesDto, municipalityId: string) {
+    return this.request('routing.rules.upsert', { ...payload, municipalityId });
   }
 
-  getRules() {
-    return this.request('routing.rules.get', {});
+  getRules(municipalityId: string) {
+    return this.request('routing.rules.get', { municipalityId });
   }
 
-  listPlans() {
-    return this.request('routing.plans.list', {});
+  listPlans(municipalityId: string) {
+    return this.request('routing.plans.list', { municipalityId });
   }
 
-  listAreaPlans() {
-    return this.request('routing.area-plans.list', {});
+  listAreaPlans(municipalityId: string) {
+    return this.request('routing.area-plans.list', { municipalityId });
   }
 
-  saveAreaPlan(payload: SaveRoutingAreaPlanDto) {
-    return this.request('routing.area-plans.save', payload);
+  saveAreaPlan(payload: SaveRoutingAreaPlanDto, municipalityId: string) {
+    return this.request('routing.area-plans.save', { ...payload, municipalityId });
   }
 
-  deleteAreaPlan(id: string) {
-    return this.request('routing.area-plans.delete', { id });
+  deleteAreaPlan(id: string, municipalityId: string) {
+    return this.request('routing.area-plans.delete', { id, municipalityId });
   }
 
-  async getPlan(id: string) {
-    return this.signEvidenceResponse(await this.request('routing.plan.get', { id }));
+  async getPlan(id: string, municipalityId: string) {
+    return this.signEvidenceResponse(await this.request('routing.plan.get', { id, municipalityId }));
   }
 
-  confirmPlan(id: string) {
-    return this.request('routing.plan.confirm', { id });
+  confirmPlan(id: string, municipalityId: string) {
+    return this.request('routing.plan.confirm', { id, municipalityId });
   }
 
-  deletePlan(id: string) {
-    return this.request('routing.plan.delete', { id });
+  deletePlan(id: string, municipalityId: string) {
+    return this.request('routing.plan.delete', { id, municipalityId });
   }
 
-  async getAssignedRoute(payload: GetAssignedRouteDto) {
+  async getAssignedRoute(payload: GetAssignedRouteDto & { municipalityId?: string }) {
     return this.signEvidenceResponse(
       await this.request('routing.assigned-route.get', payload),
     );
   }
 
-  async getAssignedRoutes(payload: GetAssignedRouteDto) {
+  async getAssignedRoutes(payload: GetAssignedRouteDto & { municipalityId?: string }) {
     return this.signEvidenceResponse(
       await this.request('routing.assigned-routes.list', payload),
     );
   }
 
-  updateRouteStatus(payload: UpdateRouteStatusDto) {
+  updateRouteStatus(payload: UpdateRouteStatusDto & { municipalityId?: string }) {
     return this.request('routing.route.status.update', payload);
   }
 
-  registerIntervention(payload: RegisterInterventionDto) {
+  registerIntervention(payload: RegisterInterventionDto & { municipalityId?: string }) {
     return this.request('routing.intervention.register', payload);
   }
 
@@ -100,20 +100,18 @@ export class RoutingService {
     file: EvidenceUploadFile,
     actor: { actorId: string; actorIsAdmin: boolean; municipalityId?: string },
   ) {
-    const municipalityId = actor.municipalityId?.trim() || 'platform';
+    const municipalityId = actor.municipalityId?.trim();
+    if (!municipalityId) {
+      throw new ForbiddenException('El usuario no tiene un municipio configurado para adjuntar evidencia.');
+    }
     if (!actor.actorIsAdmin) {
-      if (!actor.municipalityId) {
-        throw new ForbiddenException(
-          'El usuario no tiene un municipio configurado para adjuntar evidencia.',
-        );
-      }
       const assigned = await this.request<{
         data?: Array<{
           stops?: Array<{
             intervention?: { id: string } | null;
           }>;
         }>;
-      }>('routing.assigned-routes.list', { userId: actor.actorId });
+      }>('routing.assigned-routes.list', { userId: actor.actorId, municipalityId });
       const ownsIntervention = (assigned.data ?? []).some((route) =>
         (route.stops ?? []).some(
           (stop) => stop.intervention?.id === payload.interventionId,
@@ -143,6 +141,7 @@ export class RoutingService {
           descripcion: payload.descripcion,
           actorId: actor.actorId,
           actorIsAdmin: actor.actorIsAdmin,
+          municipalityId,
         },
       );
       return this.signEvidenceResponse(response);

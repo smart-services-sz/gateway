@@ -1,5 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { RedisService } from '../redis/redis.service';
 import { ReclamosService } from './reclamos.service';
 
@@ -9,6 +9,12 @@ describe('ReclamosService public claim submission', () => {
     direccion: 'San Martin 123',
     categoria: 'alumbrado',
     contacto: 'Vecino@Example.com',
+  };
+  const municipality = {
+    id: 'funes', name: 'Municipalidad de Funes', defaultCity: 'Funes',
+    country: 'Argentina', isActive: true,
+    allowedCountries: ['Argentina'], allowedAdminAreas: ['Santa Fe'],
+    categories: [{ code: 'alumbrado', name: 'Alumbrado', isActive: true, defaultPriority: 'alta' }],
   };
   let natsClient: { send: jest.Mock };
   let redisClient: { incr: jest.Mock; expire: jest.Mock };
@@ -25,7 +31,7 @@ describe('ReclamosService public claim submission', () => {
     previousMunicipalityName = process.env.PUBLIC_MUNICIPALITY_NAME;
     process.env.PUBLIC_MUNICIPALITY_ID = 'funes';
     process.env.PUBLIC_MUNICIPALITY_NAME = 'Funes';
-    natsClient = { send: jest.fn() };
+    natsClient = { send: jest.fn().mockReturnValueOnce(of(municipality)) };
     redisClient = {
       incr: jest.fn().mockResolvedValue(1),
       expire: jest.fn().mockResolvedValue(true),
@@ -63,7 +69,7 @@ describe('ReclamosService public claim submission', () => {
             lat: -32.91,
             lng: -60.81,
             formattedAddress: 'San Martin 123, Funes, Santa Fe, Argentina',
-            addressComponents: { locality: 'Funes' },
+            addressComponents: { locality: 'Funes', country: 'Argentina', adminArea: 'Santa Fe' },
           },
         }),
       )
@@ -79,7 +85,7 @@ describe('ReclamosService public claim submission', () => {
     });
 
     expect(natsClient.send).toHaveBeenNthCalledWith(
-      1,
+      2,
       'geo.geocode-address',
       expect.objectContaining({
         address: payload.direccion,
@@ -88,14 +94,14 @@ describe('ReclamosService public claim submission', () => {
       }),
     );
     expect(natsClient.send).toHaveBeenNthCalledWith(
-      2,
+      3,
       'reclamos.create',
       expect.objectContaining({
         canal: 'web',
         contactKey: 'web:email:vecino@example.com',
         correo: 'vecino@example.com',
         categoria: 'alumbrado',
-        prioridad: 'media',
+        prioridad: 'alta',
         municipalityId: 'funes',
         direccion: 'San Martin 123, Funes, Santa Fe, Argentina',
         lat: -32.91,
@@ -112,7 +118,7 @@ describe('ReclamosService public claim submission', () => {
     await expect(
       service.createPublic(payload, '203.0.113.10'),
     ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
-    expect(natsClient.send).toHaveBeenCalledTimes(1);
+    expect(natsClient.send).toHaveBeenCalledTimes(2);
     expect(natsClient.send).not.toHaveBeenCalledWith(
       'reclamos.create',
       expect.anything(),
@@ -134,7 +140,7 @@ describe('ReclamosService public claim submission', () => {
     await expect(
       service.createPublic(payload, '203.0.113.10'),
     ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
-    expect(natsClient.send).toHaveBeenCalledTimes(1);
+    expect(natsClient.send).toHaveBeenCalledTimes(2);
   });
 
   it('blocks public submissions after the configured IP limit', async () => {
@@ -144,6 +150,64 @@ describe('ReclamosService public claim submission', () => {
       service.createPublic(payload, '203.0.113.10'),
     ).rejects.toMatchObject({ status: HttpStatus.TOO_MANY_REQUESTS });
     expect(natsClient.send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...municipality, isActive: false },
+    { ...municipality, id: 'otro_municipio' },
+  ])('blocks unavailable or mismatched municipal configuration', async (configuration) => {
+    natsClient.send.mockReset().mockReturnValue(of(configuration));
+    await expect(service.createPublic(payload, '203.0.113.10'))
+      .rejects.toMatchObject({ status: HttpStatus.SERVICE_UNAVAILABLE });
+    expect(natsClient.send).toHaveBeenCalledTimes(1);
+    expect(evidenceStorage.storeEvidence).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the catalog is unavailable', async () => {
+    natsClient.send.mockReset().mockReturnValue(throwError(() => new Error('catalog unavailable')));
+    await expect(service.createPublic(payload, '203.0.113.10'))
+      .rejects.toMatchObject({ status: HttpStatus.SERVICE_UNAVAILABLE });
+    expect(evidenceStorage.storeEvidence).not.toHaveBeenCalled();
+  });
+
+  it('rejects inactive categories before geocoding or uploading evidence', async () => {
+    natsClient.send.mockReset().mockReturnValue(of({
+      ...municipality,
+      categories: [{ ...municipality.categories[0], isActive: false }],
+    }));
+    await expect(service.createPublic(payload, '203.0.113.10'))
+      .rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+    expect(natsClient.send).toHaveBeenCalledTimes(1);
+    expect(evidenceStorage.storeEvidence).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { locality: 'Funes', country: 'Uruguay', adminArea: 'Santa Fe' },
+    { locality: 'Funes', country: 'Argentina', adminArea: 'Buenos Aires' },
+    { locality: 'Funes' },
+  ])('rejects addresses outside coverage or without verified components: %j', async (addressComponents) => {
+    natsClient.send.mockReturnValueOnce(of({
+      status: 'geocode_ok', data: { lat: -32.91, lng: -60.81, addressComponents },
+    }));
+    await expect(service.createPublic(payload, '203.0.113.10'))
+      .rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+    expect(evidenceStorage.storeEvidence).not.toHaveBeenCalled();
+  });
+
+  it('exposes only active supported categories and public municipality fields', async () => {
+    natsClient.send.mockReset().mockReturnValue(of({
+      ...municipality,
+      rules: [{ key: 'private-rule', value: { private: true } }],
+      categories: [
+        ...municipality.categories,
+        { code: 'residuos', name: 'Residuos', isActive: false },
+        { code: 'custom', name: 'Custom', isActive: true },
+      ],
+    }));
+    await expect(service.getPublicConfiguration()).resolves.toEqual({
+      municipality: { id: 'funes', name: municipality.name, city: 'Funes' },
+      categories: [{ code: 'alumbrado', name: 'Alumbrado' }],
+    });
   });
 
   it('associates private evidence metadata with the created claim', async () => {
@@ -162,7 +226,7 @@ describe('ReclamosService public claim submission', () => {
           data: {
             lat: -32.91,
             lng: -60.81,
-            addressComponents: { locality: 'Funes' },
+            addressComponents: { locality: 'Funes', country: 'Argentina', adminArea: 'Santa Fe' },
           },
         }),
       )
@@ -178,7 +242,7 @@ describe('ReclamosService public claim submission', () => {
       expect.any(Array),
     );
     expect(natsClient.send).toHaveBeenNthCalledWith(
-      2,
+      3,
       'reclamos.create',
       expect.objectContaining({
         metadata: expect.objectContaining({ evidencias: [evidence] }),
@@ -202,7 +266,7 @@ describe('ReclamosService public claim submission', () => {
           data: {
             lat: -32.91,
             lng: -60.81,
-            addressComponents: { locality: 'Funes' },
+            addressComponents: { locality: 'Funes', country: 'Argentina', adminArea: 'Santa Fe' },
           },
         }),
       )

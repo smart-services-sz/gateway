@@ -176,13 +176,17 @@ describe('ReclamosService public tracking', () => {
     };
     evidenceStorage.storeEvidence.mockResolvedValue([evidence]);
     natsClient.send
+      .mockReturnValueOnce(of({
+        id: 'funes', name: 'Funes', country: 'Argentina', isActive: true,
+        categories: [{ code: 'alumbrado', name: 'Alumbrado', isActive: true }],
+      }))
       .mockReturnValueOnce(
         of({
           status: 'geocode_ok',
           data: {
             lat: -32.91,
             lng: -60.81,
-            addressComponents: { locality: 'Funes' },
+            addressComponents: { locality: 'Funes', country: 'Argentina' },
           },
         }),
       )

@@ -6,6 +6,11 @@ import {
   MaxLength,
 } from 'class-validator';
 
+export const PUBLIC_CLAIM_CATEGORIES = [
+  'agua_y_cloacas', 'alumbrado', 'baches_y_pavimento', 'arbolado', 'residuos',
+  'electricidad', 'gas', 'transporte', 'infraestructura', 'otros',
+];
+
 export class PublicClaimSubmissionDto {
   @IsString()
   @IsNotEmpty()
@@ -18,18 +23,7 @@ export class PublicClaimSubmissionDto {
   direccion!: string;
 
   @IsString()
-  @IsIn([
-    'agua_y_cloacas',
-    'alumbrado',
-    'baches_y_pavimento',
-    'arbolado',
-    'residuos',
-    'electricidad',
-    'gas',
-    'transporte',
-    'infraestructura',
-    'otros',
-  ])
+  @IsIn(PUBLIC_CLAIM_CATEGORIES)
   categoria!: string;
 
   @IsString()
