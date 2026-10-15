@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RoutingModule } from './routing/routing.module';
+import { MunicipalConfigModule } from './municipal-config/municipal-config.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { RoutingModule } from './routing/routing.module';
     WhatsappModule,
     ReclamosModule,
     RoutingModule,
+    MunicipalConfigModule,
     AuthModule,
     PermissionsModule,
     RolesModule,
