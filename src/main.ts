@@ -6,6 +6,8 @@ import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const logger = new Logger('GATEWAY');
+  const natsConfigured = Boolean(process.env.NATS_SERVERS);
+  const redisConfigured = Boolean(process.env.REDIS_URL);
 
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
@@ -47,8 +49,8 @@ async function bootstrap() {
     GATEWAY STARTED
     PORT: ${port}
     ENV : ${process.env.NODE_ENV}
-    NATS_SERVERS: ${process.env.NATS_SERVERS}
-    REDIS: ${process.env.REDIS_URL}
+    NATS: ${natsConfigured ? 'configured' : 'default'}
+    REDIS: ${redisConfigured ? 'configured' : 'not-configured'}
   ----------------------------------------
   `);
 }

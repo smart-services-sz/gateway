@@ -83,18 +83,14 @@ export class WhatsappService implements OnModuleInit {
       const messageId = response.data?.messages?.[0]?.id;
 
       this.logger.log(
-        `[WHATSAPP-SEND] messageId=${messageId} to=${recipientPhone} | SUCCESS`,
+        `[WHATSAPP-SEND] providerMessageId=${Boolean(messageId)} | SUCCESS`,
       );
 
       return messageId || null;
     } catch (error: unknown) {
       const axiosError = error as AxiosError;
-      const errorMessage =
-        axiosError?.response?.data ||
-        (error instanceof Error ? error.message : String(error));
-
       this.logger.error(
-        `[WHATSAPP-SEND] to=${recipientPhone} | ERROR: ${JSON.stringify(errorMessage)}`,
+        `[WHATSAPP-SEND] | status=${axiosError.response?.status ?? 'n/a'} | code=${axiosError.code ?? (error instanceof Error ? error.name : 'UnknownError')} | ERROR`,
       );
 
       return null;
@@ -125,17 +121,11 @@ export class WhatsappService implements OnModuleInit {
         timeout: 8000,
       });
 
-      this.logger.log(
-        `[WHATSAPP-TOKEN-CHECK] OK id=${response.data?.id || 'n/a'} name=${response.data?.name || 'n/a'}`,
-      );
+      this.logger.log('[WHATSAPP-TOKEN-CHECK] credentials validated | SUCCESS');
     } catch (error: unknown) {
       const axiosError = error as AxiosError;
-      const errorMessage =
-        axiosError?.response?.data ||
-        (error instanceof Error ? error.message : String(error));
-
       this.logger.error(
-        `[WHATSAPP-TOKEN-CHECK] ERROR ${JSON.stringify(errorMessage)}`,
+        `[WHATSAPP-TOKEN-CHECK] status=${axiosError.response?.status ?? 'n/a'} | code=${axiosError.code ?? (error instanceof Error ? error.name : 'UnknownError')} | ERROR`,
       );
     }
   }

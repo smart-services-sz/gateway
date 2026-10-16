@@ -235,10 +235,7 @@ export class InboundService implements OnModuleDestroy {
       );
 
       this.logger.log(
-        `[${aiPayload.correlationId}] Respuesta de ms-ai recibida | contactKey=${contactKey}`,
-      );
-      this.logger.debug(
-        `[${aiPayload.correlationId}] ms-ai response: ${JSON.stringify(response)}`,
+        `[${aiPayload.correlationId}] Respuesta de ms-ai recibida | status=${this.extractStatus(response) || 'n/a'}`,
       );
 
       await this.emitChannelResponse(aiPayload, response);
@@ -261,17 +258,17 @@ export class InboundService implements OnModuleDestroy {
       );
 
       this.logger.error(
-        `[${aiPayload.correlationId}] Error al enviar a ms-ai | contactKey=${contactKey} | error=${message}`,
+        `[${aiPayload.correlationId}] Error al enviar a ms-ai | error=${error instanceof Error ? error.name : 'UnknownError'}`,
       );
     }
 
     if (dispatchStatus === 'success') {
       this.logger.log(
-        `[${aiPayload.correlationId}] Lote consolidado despachado a ms-ai | contactKey=${contactKey} | mensajes=${messages.length}`,
+        `[${aiPayload.correlationId}] Lote consolidado despachado a ms-ai | channel=${aiPayload.channel} | mensajes=${messages.length}`,
       );
     } else {
       this.logger.warn(
-        `[${aiPayload.correlationId}] Lote consolidado con error en ms-ai | contactKey=${contactKey} | mensajes=${messages.length}`,
+        `[${aiPayload.correlationId}] Lote consolidado con error en ms-ai | channel=${aiPayload.channel} | mensajes=${messages.length}`,
       );
     }
   }
@@ -398,7 +395,7 @@ export class InboundService implements OnModuleDestroy {
     } else {
       // Para otros canales, solo loguea.
       this.logger.log(
-        `[CHANNEL-OUT][${payload.channel}] to=${payload.contactKey} status=${status || 'n/a'} message="${assistantMessage}"`,
+        `[${payload.correlationId}] [CHANNEL-OUT] | channel=${payload.channel} | status=${status || 'n/a'} | recipient=[REDACTED] | content=[REDACTED]`,
       );
     }
   }
@@ -417,7 +414,7 @@ export class InboundService implements OnModuleDestroy {
 
     if (!recipientPhone) {
       this.logger.error(
-        `[${correlationId}] No se pudo extraer el phone del contactKey=${contactKey}`,
+        `[${correlationId}] No se pudo resolver el destinatario | channel=whatsapp`,
       );
       return;
     }
@@ -427,7 +424,7 @@ export class InboundService implements OnModuleDestroy {
 
     if (!phoneNumberId || typeof phoneNumberId !== 'string') {
       this.logger.error(
-        `[${correlationId}] No hay phoneNumberId en metadata para contactKey=${contactKey}`,
+        `[${correlationId}] No hay phoneNumberId en metadata | channel=whatsapp`,
       );
       return;
     }
@@ -440,11 +437,11 @@ export class InboundService implements OnModuleDestroy {
 
     if (messageId) {
       this.logger.log(
-        `[${correlationId}] [CHANNEL-OUT][whatsapp] to=${contactKey} messageId=${messageId} | SUCCESS`,
+        `[${correlationId}] [CHANNEL-OUT] | channel=whatsapp | providerMessageId=${Boolean(messageId)} | SUCCESS`,
       );
     } else {
       this.logger.error(
-        `[${correlationId}] [CHANNEL-OUT][whatsapp] to=${contactKey} | FAILED`,
+        `[${correlationId}] [CHANNEL-OUT] | channel=whatsapp | FAILED`,
       );
     }
   }

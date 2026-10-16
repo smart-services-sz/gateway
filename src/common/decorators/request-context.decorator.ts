@@ -4,6 +4,7 @@ export interface RequestContextData {
   ip: string;
   userAgent?: string;
   userId?: string;
+  correlationId?: string;
 }
 
 export const RequestContext = createParamDecorator(
@@ -19,7 +20,8 @@ export const RequestContext = createParamDecorator(
     return {
       ip,
       userAgent: request.headers['user-agent'],
-      userId: request.user?.sub, // si tienes JWT guard
+      userId: request.user?.userId ?? request.user?.sub,
+      correlationId: request.correlationId ?? request.headers['x-correlation-id'],
     };
   },
 );

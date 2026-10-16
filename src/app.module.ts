@@ -18,6 +18,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RoutingModule } from './routing/routing.module';
 import { MunicipalConfigModule } from './municipal-config/municipal-config.module';
 import { AuditModule } from './audit/audit.module';
+import { AuditLoggingModule } from './audit/audit-logging.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AuditModule } from './audit/audit.module';
     RoutingModule,
     MunicipalConfigModule,
     AuditModule,
+    AuditLoggingModule,
     AuthModule,
     PermissionsModule,
     RolesModule,

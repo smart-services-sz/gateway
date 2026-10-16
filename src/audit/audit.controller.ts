@@ -1,6 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.dto';
+import type { JwtUser } from '../common/decorators/current-user.dto';
 import { RequestContext } from '../common/decorators/request-context.decorator';
 import type { RequestContextData } from '../common/decorators/request-context.decorator';
 import { AuditGatewayService } from './audit.service';
@@ -17,7 +19,11 @@ export class AuditController {
   getLogs(
     @Query() query: GetAuditLogsDto,
     @RequestContext() context: RequestContextData,
+    @CurrentUser() user: JwtUser,
   ) {
-    return this.auditService.getLogs(query, context);
+    const scopedQuery = user.municipalityId
+      ? { ...query, municipalityId: user.municipalityId }
+      : query;
+    return this.auditService.getLogs(scopedQuery, context);
   }
 }
