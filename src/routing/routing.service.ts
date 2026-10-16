@@ -16,6 +16,7 @@ import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
 import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
 import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
+import { RoutingMetricsQueryDto } from './dto/routing-metrics-query.dto';
 import {
   EvidenceStorageService,
   EvidenceUploadFile,
@@ -49,6 +50,10 @@ export class RoutingService {
 
   listPlans(municipalityId: string) {
     return this.request('routing.plans.list', { municipalityId });
+  }
+
+  getMetrics(query: RoutingMetricsQueryDto, municipalityId: string) {
+    return this.request('routing.metrics.summary', { ...query, municipalityId });
   }
 
   listAreaPlans(municipalityId: string) {

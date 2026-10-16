@@ -18,6 +18,7 @@ import { UpdateReclamoDto } from './dto/update-reclamo.dto';
 import { ReviewResolutionDto } from './dto/review-resolution.dto';
 import { RequestNewVisitDto } from './dto/request-new-visit.dto';
 import { CloseReclamoDto } from './dto/close-reclamo.dto';
+import { ReclamoMetricsQueryDto } from './dto/reclamo-metrics-query.dto';
 import { PUBLIC_CLAIM_CATEGORIES, PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
 import type { MunicipalityConfigurationDto } from '../municipal-config/dto/municipality-configuration.dto';
 import {
@@ -56,6 +57,10 @@ export class ReclamosService {
         this.isRecord(item) ? this.sanitizeEvidenceMetadata(item) : item,
       ),
     };
+  }
+
+  getMetrics(query: ReclamoMetricsQueryDto, scope: ReclamoTerritorialScope) {
+    return this.request('reclamos.metrics.summary', { ...query, ...scope });
   }
 
   async findOne(id: string, scope: ReclamoTerritorialScope = {}) {

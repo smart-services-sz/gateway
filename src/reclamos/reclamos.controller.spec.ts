@@ -10,6 +10,7 @@ describe('ReclamosController territorial scope', () => {
     getPublicConfiguration: jest.fn(),
     createPublic: jest.fn(),
     getPublicTracking: jest.fn(),
+    getMetrics: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     getHistory: jest.fn(),
@@ -80,6 +81,25 @@ describe('ReclamosController territorial scope', () => {
       ForbiddenException,
     );
     expect(reclamosService.findAll).not.toHaveBeenCalled();
+  });
+
+  it('forces a municipal admin metrics query to the JWT municipality', () => {
+    controller.getMetrics({ municipalityId: 'municipality-b', areaId: 'area-b' } as never, request({ ...agent, roles: ['ADMIN'] }));
+    expect(reclamosService.getMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ municipalityId: 'municipality-b', areaId: 'area-b' }),
+      { municipalityId: 'municipality-a', areaId: 'area-a' },
+    );
+  });
+
+  it('requires a selected municipality for a platform admin metrics query', () => {
+    const platformAdmin = { ...agent, roles: ['ADMIN'], municipalityId: undefined, areaId: undefined };
+    expect(() => controller.getMetrics({} as never, request(platformAdmin))).toThrow(ForbiddenException);
+    expect(reclamosService.getMetrics).not.toHaveBeenCalled();
+    controller.getMetrics({ municipalityId: 'municipality-b' } as never, request(platformAdmin));
+    expect(reclamosService.getMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ municipalityId: 'municipality-b' }),
+      { municipalityId: 'municipality-b' },
+    );
   });
 
   it('passes the authenticated scope to detail and history lookups', () => {

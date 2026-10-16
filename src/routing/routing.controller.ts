@@ -10,6 +10,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Put,
   Req,
   UploadedFiles,
@@ -28,6 +29,7 @@ import { UpdateRouteStatusDto } from './dto/update-route-status.dto';
 import { RegisterInterventionDto } from './dto/register-intervention.dto';
 import { AttachInterventionEvidenceDto } from './dto/attach-intervention-evidence.dto';
 import { SaveRoutingAreaPlanDto } from './dto/save-routing-area-plan.dto';
+import { RoutingMetricsQueryDto } from './dto/routing-metrics-query.dto';
 import { JwtUser } from '../common/decorators/current-user.dto';
 import type { EvidenceUploadFile } from '../reclamos/evidence-storage.service';
 
@@ -130,6 +132,21 @@ export class RoutingController {
   })
   listPlans(@Req() request: Request & { user: JwtUser }) {
     return this.routingService.listPlans(this.municipalityFor(request.user));
+  }
+
+  @Roles('ADMIN')
+  @Permissions('VIEW_RECLAMOS')
+  @Get('metrics')
+  @ApiOperation({ summary: 'Obtiene métricas agregadas de ruteo del municipio autenticado' })
+  getMetrics(
+    @Query() query: RoutingMetricsQueryDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    const municipalityId = request.user.municipalityId?.trim() || query.municipalityId;
+    if (!municipalityId || !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(municipalityId)) {
+      throw new ForbiddenException('Debe seleccionar un municipio valido para consultar métricas');
+    }
+    return this.routingService.getMetrics(query, municipalityId);
   }
 
   @Roles('ADMIN')

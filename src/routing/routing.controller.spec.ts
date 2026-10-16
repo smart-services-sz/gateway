@@ -22,6 +22,7 @@ describe('RoutingController territorial scope', () => {
     upsertRules: jest.fn(), saveAreaPlan: jest.fn(), deleteAreaPlan: jest.fn(),
     getPlan: jest.fn(), confirmPlan: jest.fn(), deletePlan: jest.fn(),
     updateRouteStatus: jest.fn(), registerIntervention: jest.fn(),
+    getMetrics: jest.fn(),
   } as unknown as RoutingService;
   const controller = new RoutingController(service);
 
@@ -34,6 +35,17 @@ describe('RoutingController territorial scope', () => {
       user: { userId: 'admin-1', roles: ['ADMIN'], municipalityId: 'municipio_a' },
     } as never);
     expect(generateMock).toHaveBeenCalledWith({ municipalityId: 'municipio_a' });
+  });
+
+  it('locks route metrics to a municipal admin JWT and requires selection for platform admins', () => {
+    const municipalAdmin = { userId: 'admin-a', roles: ['ADMIN'], municipalityId: 'municipio_a' };
+    controller.getMetrics({ municipalityId: 'municipio_b' } as never, { user: municipalAdmin } as never);
+    expect(service.getMetrics).toHaveBeenCalledWith({ municipalityId: 'municipio_b' }, 'municipio_a');
+
+    const platformAdmin = { userId: 'admin-platform', roles: ['ADMIN'] };
+    expect(() => controller.getMetrics({} as never, { user: platformAdmin } as never)).toThrow(ForbiddenException);
+    controller.getMetrics({ municipalityId: 'municipio_b' } as never, { user: platformAdmin } as never);
+    expect(service.getMetrics).toHaveBeenLastCalledWith({ municipalityId: 'municipio_b' }, 'municipio_b');
   });
 
   it('carries authenticated scope to all administrative reads and mutations', () => {

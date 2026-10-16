@@ -30,6 +30,7 @@ import { RequestNewVisitDto } from './dto/request-new-visit.dto';
 import { CloseReclamoDto } from './dto/close-reclamo.dto';
 import { PublicTrackingDto } from './dto/public-tracking.dto';
 import { PublicClaimSubmissionDto } from './dto/public-claim-submission.dto';
+import { ReclamoMetricsQueryDto } from './dto/reclamo-metrics-query.dto';
 import type { EvidenceUploadFile } from './evidence-storage.service';
 import { JwtUser } from '../common/decorators/current-user.dto';
 
@@ -181,6 +182,24 @@ export class ReclamosController {
       reclamoId: id,
       actorId: request.user.userId,
     }, this.getTerritorialScope(request.user));
+  }
+
+  @Roles('ADMIN', 'AGENT')
+  @Permissions('VIEW_RECLAMOS')
+  @Get('metrics')
+  @ApiOperation({ summary: 'Obtiene metricas agregadas del municipio autenticado' })
+  getMetrics(
+    @Query() query: ReclamoMetricsQueryDto,
+    @Req() request: Request & { user: JwtUser },
+  ) {
+    const scope = this.getTerritorialScope(request.user);
+    const municipalityId = scope.municipalityId ?? (
+      request.user.roles.includes('ADMIN') ? query.municipalityId : undefined
+    );
+    if (!municipalityId) {
+      throw new ForbiddenException('Debe asignarse un municipio antes de consultar metricas');
+    }
+    return this.reclamosService.getMetrics(query, { ...scope, municipalityId });
   }
 
   @Roles('ADMIN', 'AGENT')
